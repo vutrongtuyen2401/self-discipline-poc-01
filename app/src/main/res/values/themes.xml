@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.SelfDisciplinePoc01" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.SelfDisciplinePoc01.LockScreen" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Opaque solid background so the Window Manager displays the blocking color instantly before any Compose pass -->
+        <item name="android:windowBackground">#FFFFFF</item>
+        <!-- Disable window transition animation to appear immediately without a slide/zoom animation -->
+        <item name="android:windowAnimationStyle">@style/NoAnimation</item>
+        <item name="android:windowDisablePreview">false</item>
+    </style>
+
+    <style name="NoAnimation">
+        <item name="android:activityOpenEnterAnimation">@null</item>
+        <item name="android:activityOpenExitAnimation">@null</item>
+        <item name="android:activityCloseEnterAnimation">@null</item>
+        <item name="android:activityCloseExitAnimation">@null</item>
+        <item name="android:taskOpenEnterAnimation">@null</item>
+        <item name="android:taskOpenExitAnimation">@null</item>
+        <item name="android:taskCloseEnterAnimation">@null</item>
+        <item name="android:taskCloseExitAnimation">@null</item>
+    </style>
+</resources>

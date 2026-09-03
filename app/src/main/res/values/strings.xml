@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">SelfDisciplinePoc01</string>
+    <string name="accessibility_service_label">SelfDisciplinePoc01 Foreground App Detector</string>
+    <string name="accessibility_service_description">Proof of concept service for detecting foreground application package changes on Android 15.</string>
+    
+    <!-- POC-02 Lock Screen Strings -->
+    <string name="lock_screen_title">Application Locked</string>
+    <string name="lock_screen_message">Google Chrome (com.android.chrome) is locked for this technical proof of concept.</string>
+    <string name="lock_screen_button_home">Go to Home Screen</string>
+</resources>

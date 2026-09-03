@@ -1,0 +1,706 @@
+package com.example.selfdisciplinepoc01
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.example.selfdisciplinepoc01.target.model.LockedApp
+import com.example.selfdisciplinepoc01.target.model.TimeLimit
+import com.example.selfdisciplinepoc01.target.model.TimeSchedule
+import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
+import com.example.selfdisciplinepoc01.usage.UsageTracker
+import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+class MainActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleIntent(intent)
+        enableEdgeToEdge()
+        setContent {
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    ForegroundDetectorScreen()
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: android.content.Intent?) {
+        val addPkg = intent?.getStringExtra("EXTRA_ADD_TARGET")
+        val removePkg = intent?.getStringExtra("EXTRA_REMOVE_TARGET")
+        val togglePkg = intent?.getStringExtra("EXTRA_TOGGLE_TARGET")
+        val setEnabled = intent?.getBooleanExtra("EXTRA_SET_ENABLED", true) ?: true
+
+        val policyPkg = intent?.getStringExtra("EXTRA_POLICY_TARGET")
+
+        if (addPkg != null || removePkg != null || togglePkg != null || policyPkg != null) {
+            val repo = TargetRepositoryProvider.getRepository(applicationContext)
+            lifecycleScope.launch {
+                addPkg?.let { repo.add(it) }
+                removePkg?.let { repo.remove(it) }
+                togglePkg?.let { repo.setEnabled(it, setEnabled) }
+
+                if (policyPkg != null) {
+                    val hasSched = intent.hasExtra("EXTRA_SCHEDULE_ENABLED")
+                    val schedEnabled = intent.getBooleanExtra("EXTRA_SCHEDULE_ENABLED", false)
+                    val sH = intent.getIntExtra("EXTRA_START_HOUR", 9)
+                    val sM = intent.getIntExtra("EXTRA_START_MINUTE", 0)
+                    val eH = intent.getIntExtra("EXTRA_END_HOUR", 17)
+                    val eM = intent.getIntExtra("EXTRA_END_MINUTE", 0)
+                    val schedule = if (hasSched) TimeSchedule(schedEnabled, sH, sM, eH, eM) else null
+
+                    val hasLimit = intent.hasExtra("EXTRA_LIMIT_ENABLED")
+                    val limitEnabled = intent.getBooleanExtra("EXTRA_LIMIT_ENABLED", false)
+                    val limitMins = intent.getIntExtra("EXTRA_LIMIT_MINUTES", 0)
+                    val limitSecs = if (intent.hasExtra("EXTRA_LIMIT_SECONDS")) intent.getIntExtra("EXTRA_LIMIT_SECONDS", 0) else null
+                    val timeLimit = if (hasLimit) TimeLimit(limitEnabled, limitMins, limitSecs) else null
+
+                    repo.updatePolicy(policyPkg, schedule, timeLimit)
+                    AppDetectorAccessibilityService.onPolicyUpdated(policyPkg)
+                }
+                finish()
+            }
+        }
+    }
+}
+
+@Composable
+fun ForegroundDetectorScreen() {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val targetRepository = remember { TargetRepositoryProvider.getRepository(context) }
+    val usageTracker = remember { UsageTrackerProvider.getTracker(context) }
+    val lockedApps by targetRepository.getLockedPackages().collectAsStateWithLifecycle(initialValue = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+
+    var isServiceEnabled by remember {
+        mutableStateOf(
+            AccessibilityUtil.isAccessibilityServiceEnabled(
+                context,
+                AppDetectorAccessibilityService::class.java
+            )
+        )
+    }
+
+    // Refresh state whenever activity resumes
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isServiceEnabled = AccessibilityUtil.isAccessibilityServiceEnabled(
+                    context,
+                    AppDetectorAccessibilityService::class.java
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "SelfDisciplinePoc01",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "Phase 09-A — Real-Time Daily Limit Enforcement",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Status Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isServiceEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(
+                                    color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                    shape = CircleShape
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isServiceEnabled) "Accessibility Service: ENABLED" else "Accessibility Service: DISABLED",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isServiceEnabled) Color(0xFF1B5E20) else Color(0xFFB71C1C),
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (isServiceEnabled)
+                            "Accessibility detector is running, tracking usage, and enforcing policy locks."
+                        else
+                            "To enable locking on target apps, activate 'SelfDisciplinePoc01 Foreground App Detector' in Accessibility Settings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF37474F)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Settings Action Button
+            Button(
+                onClick = { AccessibilityUtil.openAccessibilitySettings(context) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(
+                    text = "Open Accessibility Settings",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Target Management Section
+            TargetManagementCard(
+                lockedApps = lockedApps,
+                usageTracker = usageTracker,
+                onAdd = { pkg ->
+                    coroutineScope.launch {
+                        targetRepository.add(pkg)
+                    }
+                },
+                onRemove = { pkg ->
+                    coroutineScope.launch {
+                        targetRepository.remove(pkg)
+                    }
+                },
+                onSetEnabled = { pkg, enabled ->
+                    coroutineScope.launch {
+                        targetRepository.setEnabled(pkg, enabled)
+                    }
+                },
+                onUpdatePolicy = { pkg, schedule, timeLimit ->
+                    coroutineScope.launch {
+                        targetRepository.updatePolicy(pkg, schedule, timeLimit)
+                        AppDetectorAccessibilityService.onPolicyUpdated(pkg)
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Verification & Instructions Box
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Phase 08 Policy Rules",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "1. Default targets with no schedule/limit remain locked 24/7.\n" +
+                                "2. Schedule Lock enforces locks during configured intervals (e.g. 09:00-17:00 or 22:00-07:00).\n" +
+                                "3. Daily Usage Limits track usage via monotonic elapsed time and lock when reached.\n" +
+                                "4. Locking and allowed transitions preserve Frozen Core invariants.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TargetManagementCard(
+    lockedApps: List<LockedApp>,
+    usageTracker: UsageTracker,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onSetEnabled: (String, Boolean) -> Unit,
+    onUpdatePolicy: (String, TimeSchedule?, TimeLimit?) -> Unit
+) {
+    var inputPackage by remember { mutableStateOf("") }
+    var selectedAppForPolicy by remember { mutableStateOf<LockedApp?>(null) }
+
+    // Dialog for editing Schedule and Time Limit
+    if (selectedAppForPolicy != null) {
+        PolicyConfigDialog(
+            app = selectedAppForPolicy!!,
+            onDismiss = { selectedAppForPolicy = null },
+            onSave = { sched, limit ->
+                onUpdatePolicy(selectedAppForPolicy!!.packageName, sched, limit)
+                selectedAppForPolicy = null
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Policy Targets",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${lockedApps.count { it.enabled }} active / ${lockedApps.size} total",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Add Target Input
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = inputPackage,
+                    onValueChange = { inputPackage = it },
+                    placeholder = { Text("e.g. com.android.bbkcalculator", fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = {
+                        val trimmed = inputPackage.trim()
+                        if (trimmed.isNotEmpty()) {
+                            onAdd(trimmed)
+                            inputPackage = ""
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(52.dp)
+                ) {
+                    Text("Add")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Quick Preset Suggestions
+            Text(
+                text = "Quick Presets:",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                QuickChip(label = "Chrome", pkg = "com.android.chrome") { inputPackage = it }
+                QuickChip(label = "Calculator", pkg = "com.android.bbkcalculator") { inputPackage = it }
+                QuickChip(label = "Settings", pkg = "com.android.settings") { inputPackage = it }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // List of Targets
+            if (lockedApps.isEmpty()) {
+                Text(
+                    text = "No targets configured. Add a package name above.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    lockedApps.forEach { app ->
+                        TargetAppRow(
+                            app = app,
+                            usageTracker = usageTracker,
+                            onToggle = { onSetEnabled(app.packageName, it) },
+                            onDelete = { onRemove(app.packageName) },
+                            onConfigurePolicy = { selectedAppForPolicy = app }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickChip(label: String, pkg: String, onSelect: (String) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+        modifier = Modifier.clickable { onSelect(pkg) }
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
+@Composable
+fun TargetAppRow(
+    app: LockedApp,
+    usageTracker: UsageTracker,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    onConfigurePolicy: () -> Unit
+) {
+    // Poll usage every 1 second while UI is composed
+    var todayUsageMillis by remember { mutableStateOf(usageTracker.getTodayUsage(app.packageName)) }
+
+    LaunchedEffect(app.packageName) {
+        while (isActive) {
+            todayUsageMillis = usageTracker.getTodayUsage(app.packageName)
+            delay(1000L)
+        }
+    }
+
+    val usedMinutes = todayUsageMillis / 60_000L
+    val usedSeconds = (todayUsageMillis % 60_000L) / 1000L
+
+    val scheduleSummary = if (app.schedule != null && app.schedule.enabled) {
+        String.format("Schedule: %02d:%02d–%02d:%02d", app.schedule.startHour, app.schedule.startMinute, app.schedule.endHour, app.schedule.endMinute)
+    } else {
+        "Schedule: Off"
+    }
+
+    val limitSummary = if (app.timeLimit != null && app.timeLimit.enabled) {
+        "Limit: ${app.timeLimit.dailyLimitMinutes} min/day"
+    } else {
+        "Limit: Off"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (app.enabled) Color(0xFFF1F8E9) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = app.packageName,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (app.enabled) Color(0xFF1B5E20) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (app.enabled) "Status: ACTIVE" else "Status: DISABLED",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (app.enabled) Color(0xFF2E7D32) else Color(0xFF757575)
+                    )
+                }
+
+                Switch(
+                    checked = app.enabled,
+                    onCheckedChange = onToggle
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Policy Summary Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "$scheduleSummary | $limitSummary",
+                        fontSize = 11.sp,
+                        color = Color(0xFF37474F)
+                    )
+                    Text(
+                        text = "Used today: ${usedMinutes}m ${usedSeconds}s",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (app.timeLimit?.enabled == true && todayUsageMillis >= app.timeLimit.dailyLimitMinutes * 60_000L)
+                            Color(0xFFC62828)
+                        else
+                            Color(0xFF1565C0)
+                    )
+                }
+
+                Row {
+                    OutlinedButton(
+                        onClick = onConfigurePolicy,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("Policy", fontSize = 11.sp)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PolicyConfigDialog(
+    app: LockedApp,
+    onDismiss: () -> Unit,
+    onSave: (TimeSchedule?, TimeLimit?) -> Unit
+) {
+    var scheduleEnabled by remember { mutableStateOf(app.schedule?.enabled ?: false) }
+    var startHour by remember { mutableStateOf(app.schedule?.startHour?.toString() ?: "9") }
+    var startMinute by remember { mutableStateOf(app.schedule?.startMinute?.toString() ?: "0") }
+    var endHour by remember { mutableStateOf(app.schedule?.endHour?.toString() ?: "17") }
+    var endMinute by remember { mutableStateOf(app.schedule?.endMinute?.toString() ?: "0") }
+
+    var limitEnabled by remember { mutableStateOf(app.timeLimit?.enabled ?: false) }
+    var dailyLimitMinutes by remember { mutableStateOf(app.timeLimit?.dailyLimitMinutes?.toString() ?: "30") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Configure Policy", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(text = app.packageName, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Schedule Section
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = scheduleEnabled, onCheckedChange = { scheduleEnabled = it })
+                    Text("Enable Schedule Lock", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+
+                if (scheduleEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = startHour,
+                            onValueChange = { startHour = it },
+                            label = { Text("Start H", fontSize = 10.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = startMinute,
+                            onValueChange = { startMinute = it },
+                            label = { Text("Start M", fontSize = 10.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = endHour,
+                            onValueChange = { endHour = it },
+                            label = { Text("End H", fontSize = 10.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = endMinute,
+                            onValueChange = { endMinute = it },
+                            label = { Text("End M", fontSize = 10.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Time Limit Section
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = limitEnabled, onCheckedChange = { limitEnabled = it })
+                    Text("Enable Daily Limit", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+
+                if (limitEnabled) {
+                    OutlinedTextField(
+                        value = dailyLimitMinutes,
+                        onValueChange = { dailyLimitMinutes = it },
+                        label = { Text("Daily Limit (Minutes)", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val schedule = if (scheduleEnabled) {
+                        TimeSchedule(
+                            enabled = true,
+                            startHour = startHour.toIntOrNull()?.coerceIn(0, 23) ?: 9,
+                            startMinute = startMinute.toIntOrNull()?.coerceIn(0, 59) ?: 0,
+                            endHour = endHour.toIntOrNull()?.coerceIn(0, 23) ?: 17,
+                            endMinute = endMinute.toIntOrNull()?.coerceIn(0, 59) ?: 0
+                        )
+                    } else null
+
+                    val limit = if (limitEnabled) {
+                        TimeLimit(
+                            enabled = true,
+                            dailyLimitMinutes = dailyLimitMinutes.toIntOrNull()?.coerceAtLeast(0) ?: 30
+                        )
+                    } else null
+
+                    onSave(schedule, limit)
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
