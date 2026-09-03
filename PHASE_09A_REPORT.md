@@ -162,7 +162,7 @@ Cả sự kiện Accessibility thông thường và callback deadline từ `Usag
 
 ## 10. Kết Quả Kiểm Thử Đơn Vị (Unit Test Results)
 
-Toàn bộ **72/72 unit test** chạy thành công ($100\%$ PASS, $0$ lỗi, $0$ thất bại) qua lệnh `./gradlew.bat testDebugUnitTest`:
+Toàn bộ **73/73 unit test** chạy thành công ($100\%$ PASS, $0$ lỗi, $0$ thất bại) qua lệnh `./gradlew.bat testDebugUnitTest`:
 
 ```
 TEST-com.example.selfdisciplinepoc01.overlay.BlockingShieldOverlayTest.xml: tests=8, failures=0, errors=0
@@ -170,9 +170,9 @@ TEST-com.example.selfdisciplinepoc01.policy.PolicyEngineTest.xml:           test
 TEST-com.example.selfdisciplinepoc01.policy.ScheduleEvaluatorTest.xml:      tests=17, failures=0, errors=0
 TEST-com.example.selfdisciplinepoc01.target.TargetRepositoryTest.xml:        tests=11, failures=0, errors=0
 TEST-com.example.selfdisciplinepoc01.ui.main.MainScreenViewModelTest.xml:   tests=2, failures=0, errors=0
-TEST-com.example.selfdisciplinepoc01.usage.UsageLimitWatcherTest.xml:       tests=15, failures=0, errors=0
+TEST-com.example.selfdisciplinepoc01.usage.UsageLimitWatcherTest.xml:       tests=16, failures=0, errors=0
 TEST-com.example.selfdisciplinepoc01.usage.UsageTrackerTest.xml:             tests=11, failures=0, errors=0
-Total: 72 tests PASSED in 4s.
+Total: 73 tests PASSED in 3s.
 ```
 
 ### Chi tiết 15 bài kiểm tra của `UsageLimitWatcherTest`:
@@ -191,14 +191,15 @@ Total: 72 tests PASSED in 4s.
 13. `test13_policyUpdated_invalidatesAndReschedules`: Cập nhật policy tăng generation và đặt lịch mới.
 14. `test14_wallClockChange_doesNotCorruptDeadline`: Đổi giờ hệ thống không làm sai lệch deadline đo bằng monotonic time.
 15. `test15_zeroMinuteLimit_locksImmediately`: Hạn mức 0 phút khóa tức thì.
+16. `test16_stopThenStart_lifecycleRecovery`: Chu trình stop -> start -> không mở lại mù quáng -> chờ sự kiện foreground -> lên lịch deadline mới và kích hoạt khóa.
 
 ---
 
 ## 11. Kết Quả Kiểm Thử Thực Tế Trên Thiết Bị (Real-Device Test Results)
 
 Thực thi trên thiết bị **vivo iQOO Neo 10** (Android 15 / OriginOS 5):
-- Tổng số kịch bản kiểm thử lũy kế: **45 kịch bản**
-- Số kịch bản đạt: **45/45 (100% PASS)**
+- Tổng số kịch bản kiểm thử lũy kế: **46 kịch bản**
+- Số kịch bản đạt: **46/46 (100% PASS)**
 - Số kịch bản thất bại: **0**
 
 ---
@@ -256,7 +257,7 @@ Thực thi file [`scratch/run_phase08_regressions.ps1`](file:///c:/Code/self-dis
 
 ---
 
-## 14. Kết Quả Kiểm Thử Thực Tế Phase 09-A (8 Scenarios)
+## 14. Kết Quả Kiểm Thử Thực Tế Phase 09-A (9 Scenarios)
 
 Thực thi file [`scratch/run_phase09a_regressions.ps1`](file:///c:/Code/self-discipline-poc-01/scratch/run_phase09a_regressions.ps1):
 
@@ -270,10 +271,11 @@ Thực thi file [`scratch/run_phase09a_regressions.ps1`](file:///c:/Code/self-di
 | **09A-06** | Service Lifecycle Stale Guard | `force-stop` và khởi động lại service $\to$ Không có callback rác | `Window{Launcher}` | **PASS** |
 | **09A-07** | Schedule + Daily Limit Coexistence | Schedule đang active $\to$ Khóa tức thì | `Window{LockScreenActivity}` | **PASS** |
 | **09A-08** | Rapid Foreground Transitions | 5 chu kỳ mở/đóng liên tục $\to$ Không crash, không treo overlay | `Window{LockScreenActivity}` | **PASS** |
+| **09A-09** | Lifecycle Recovery After Interrupt | Ngắt Accessibility $\to$ Kết nối lại $\to$ Chờ foreground $\to$ Khóa đúng deadline | `Recovered: True, No Blind Resume: True, Window{LockScreenActivity}` | **PASS** |
 
-👉 **Kết quả Phase 09-A: 8/8 PASSED (100%)**
+👉 **Kết quả Phase 09-A: 9/9 PASSED (100%)**
 
-**Tổng kết 3 bộ kiểm thử thực tế trên thiết bị**: **45/45 kịch bản PASSED ($100\%$)**.
+**Tổng kết 3 bộ kiểm thử thực tế trên thiết bị**: **46/46 kịch bản PASSED ($100\%$)**.
 
 ---
 
