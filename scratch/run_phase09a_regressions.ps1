@@ -36,7 +36,7 @@ function Clear-Logcat {
 
 function Get-Logcat-Output {
     param([string]$filter)
-    $logs = adb -s $Device logcat -d | Select-String $filter
+    $logs = @(adb -s $Device logcat -d | Select-String $filter)
     return $logs
 }
 
@@ -87,7 +87,6 @@ Go-Home
 # --- TEST 09A-02: Limit = 10s. Leave target at 5s. ---
 # Expected: No delayed callback locks the new foreground package!
 Write-Output "`n--- TEST 09A-02: Leave Target Before Deadline ---"
-# Reset calculator usage data
 Clear-App-Data
 adb -s $Device shell am start -n "$PocPackage/.MainActivity" --es EXTRA_ADD_TARGET $CalcPackage
 Start-Sleep -Milliseconds 800
@@ -113,7 +112,6 @@ $results["09A-02_Leave_Target_Before_Deadline"] = if ($t2Pass) { "PASS" } else {
 
 # --- TEST 09A-03: Reach exact threshold -> LockScreenActivity ---
 Write-Output "`n--- TEST 09A-03: Reach Exact Threshold ---"
-# Resume calculator and let it reach the remaining 6 seconds
 Clear-Logcat
 adb -s $Device shell am start -n "$CalcPackage/.Calculator"
 Start-Sleep -Seconds 8
@@ -216,6 +214,51 @@ $focusRapid = Get-Current-Focus
 $t8Pass = $focusRapid -match "LockScreenActivity"
 Write-Output "[09A-08_Rapid_Foreground_Transitions] Focus: $focusRapid | Result: $(if ($t8Pass) {'PASS'} else {'FAIL'})"
 $results["09A-08_Rapid_Foreground_Transitions"] = if ($t8Pass) { "PASS" } else { "FAIL" }
+Go-Home
+
+# --- TEST 09A-09: Service Interrupt -> Reconnect -> No Blind Resume -> Fresh Foreground -> Deadline Lock ---
+Write-Output "`n--- TEST 09A-09: Watcher Lifecycle Recovery After Interrupt ---"
+Clear-App-Data
+# Setup Calculator with 10s limit
+adb -s $Device shell am start -n "$PocPackage/.MainActivity" --es EXTRA_ADD_TARGET $CalcPackage
+Start-Sleep -Milliseconds 800
+adb -s $Device shell am start -n "$PocPackage/.MainActivity" --es EXTRA_POLICY_TARGET $CalcPackage --ez EXTRA_LIMIT_ENABLED true --ei EXTRA_LIMIT_SECONDS 10
+Start-Sleep -Milliseconds 800
+Go-Home
+
+# Step 1: Interrupt service (disable accessibility service)
+Write-Output "Step 1: Interrupting accessibility service..."
+Clear-Logcat
+adb -s $Device shell settings delete secure enabled_accessibility_services
+Start-Sleep -Milliseconds 1000
+
+# Step 2: Reconnect service
+Write-Output "Step 2: Reconnecting accessibility service..."
+adb -s $Device shell settings put secure enabled_accessibility_services "$PocPackage/$PocPackage.AppDetectorAccessibilityService"
+Start-Sleep -Milliseconds 1000
+
+# Step 3: Confirm no blind resume
+$logsReconnect = Get-Logcat-Output "WATCHER: STARTED"
+$logsBlind = Get-Logcat-Output "USAGE: START"
+$noBlindResume = ($logsReconnect.Count -gt 0) -and ($logsBlind.Count -eq 0)
+Write-Output "Recovered: $($logsReconnect.Count -gt 0), No Blind Resume: $noBlindResume"
+
+# Step 4: Open Calculator with fresh foreground event
+Write-Output "Step 4: Opening Calculator and waiting 10.5s for recovered watcher deadline..."
+adb -s $Device shell am start -n "$CalcPackage/.Calculator"
+Start-Sleep -Milliseconds 1500
+$focusCalcInit = Get-Current-Focus
+$allowedInit = $focusCalcInit -match "bbkcalculator"
+
+# Wait for deadline
+Start-Sleep -Milliseconds 10500
+
+$focusCalcAfter = Get-Current-Focus
+$lockedCalcAfter = $focusCalcAfter -match "LockScreenActivity"
+
+$t9Pass = $noBlindResume -and $allowedInit -and $lockedCalcAfter
+Write-Output "[09A-09_Lifecycle_Recovery_Lock] Allowed Init: $allowedInit | Locked After: $lockedCalcAfter | Result: $(if ($t9Pass) {'PASS'} else {'FAIL'})"
+$results["09A-09_Lifecycle_Recovery_Lock"] = if ($t9Pass) { "PASS" } else { "FAIL" }
 Go-Home
 
 # Cleanup

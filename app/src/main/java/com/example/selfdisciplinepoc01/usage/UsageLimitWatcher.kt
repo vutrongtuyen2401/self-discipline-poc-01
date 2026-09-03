@@ -41,6 +41,7 @@ class HandlerLimitScheduler(
  * Interface contract for UsageLimitWatcher.
  */
 interface UsageLimitWatcher {
+    fun start()
     fun onForegroundChanged(packageName: String?)
     fun onPolicyUpdated(packageName: String)
     fun stop()
@@ -69,6 +70,16 @@ class UsageLimitWatcherImpl(
     private var currentGeneration: Long = 0L
     private var activePackage: String? = null
     private var isRunning: Boolean = true
+
+    override fun start() {
+        synchronized(lock) {
+            isRunning = true
+            currentGeneration++
+            scheduler.cancel()
+            activePackage = null
+            Log.i(TAG, "[WATCHER: STARTED] Watcher started / recovered (gen=$currentGeneration); awaiting fresh foreground event")
+        }
+    }
 
     override fun onForegroundChanged(packageName: String?) {
         val cleanPkg = packageName?.trim()?.takeIf { it.isNotBlank() }

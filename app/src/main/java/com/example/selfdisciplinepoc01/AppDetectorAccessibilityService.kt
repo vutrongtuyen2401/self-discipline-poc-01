@@ -80,6 +80,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
+        usageLimitWatcher.start()
     }
 
     override fun onServiceConnected() {
@@ -90,6 +91,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
+        usageLimitWatcher.start()
         Log.d(TAG, "AppDetectorAccessibilityService connected")
     }
 

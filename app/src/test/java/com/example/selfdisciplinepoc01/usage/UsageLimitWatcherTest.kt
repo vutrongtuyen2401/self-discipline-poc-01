@@ -516,4 +516,53 @@ class UsageLimitWatcherTest {
 
         assertEquals("com.test.app", lockedPkg)
     }
+
+    // 16. Lifecycle recovery: stop -> start -> does not blindly resume -> awaits foreground confirmation -> schedules new deadline
+    @Test
+    fun test16_stopThenStart_lifecycleRecovery() {
+        val repo = FakeTargetRepository()
+        repo.apps["com.test.app"] = LockedApp(
+            "com.test.app",
+            enabled = true,
+            timeLimit = TimeLimit(enabled = true, dailyLimitSeconds = 30)
+        )
+        val clock = TestClock.at(2026, 9, 3, 10, 0, zoneId = testZone)
+        val usageTracker = UsageTracker(clock = clock, zoneId = testZone)
+        val policyEngine = PolicyEngine(repo, usageTracker, clock, testZone)
+        val scheduler = TestLimitScheduler()
+
+        var lockedPkg: String? = null
+        val watcher = UsageLimitWatcherImpl(repo, usageTracker, policyEngine, scheduler) {
+            lockedPkg = it
+        }
+
+        // App opens and watcher starts
+        usageTracker.startSession("com.test.app")
+        watcher.onForegroundChanged("com.test.app")
+        assertNotNull(scheduler.scheduledRunnable)
+        assertEquals(30_000L, scheduler.scheduledDelayMillis)
+
+        // Service is interrupted -> watcher.stop()
+        watcher.stop()
+        assertNull("Stop must clear scheduled runnable", scheduler.scheduledRunnable)
+        assertNull("Stop must clear active package", watcher.getActivePackage())
+
+        // Service reconnects -> watcher.start()
+        watcher.start()
+        // MUST NOT blindly resume previous package or schedule a deadline without foreground confirmation!
+        assertNull("Start must not blindly schedule deadline", scheduler.scheduledRunnable)
+        assertNull("Start must not restore active package before event", watcher.getActivePackage())
+
+        // Fresh Accessibility foreground event arrives
+        watcher.onForegroundChanged("com.test.app")
+        assertNotNull("Fresh foreground event must schedule deadline", scheduler.scheduledRunnable)
+        assertEquals(30_000L, scheduler.scheduledDelayMillis)
+        assertEquals("com.test.app", watcher.getActivePackage())
+
+        // Advance 30s and trigger
+        clock.advanceBoth(30_000L)
+        scheduler.trigger()
+
+        assertEquals("com.test.app", lockedPkg)
+    }
 }
