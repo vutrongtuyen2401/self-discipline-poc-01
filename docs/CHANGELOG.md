@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 27] - 2026-09-07: CORE ENFORCEMENT & BUSINESS UNLOCK INTEGRATION AUDIT
+
+> [!IMPORTANT]
+> **Kiểm toán Tích hợp Thực thi Hai Tầng & Kiểm chứng Thiết bị Thật:**
+> - **KIỂM TOÁN DÒNG THỰC THI PHÂN TẦNG (TIERED ENFORCEMENT FLOW):** Xác nhận dòng thực thi chuẩn `Technical Policy -> Technical Lock/Allow -> Business Unlock Evaluation -> Final Action`. Technical Lock có quyền cấm tuyệt đối (Absolute Precedence) và không bao giờ bị bypass.
+> - **MA TRẬN KIỂM TOÁN TÍCH HỢP 25 KỊCH BẢN:** Xây dựng bộ test chuyên biệt `CoreEnforcementIntegrationAuditTest.kt` kiểm chứng 100% các nhánh Technical Precedence, OPEN-01 ($N=0 \dots 3$, archived, deleted, M:N), Chu kỳ ngày 04:00 reset, Bảo Khố xóa/thêm lại, Runtime cache và chống stale-state bypass.
+> - **KIỂM CHỨNG THIẾT BỊ THẬT (vivo iQOO Neo 10 / Android 15 / OriginOS 5):** 
+>   * App Bảo Khố chưa liên kết ($N=0$) bị phong ấn ngay lập tức, kích hoạt `LockScreenActivity` (độ trễ 114.66 ms).
+>   * App Bảo Khố đã hoàn thành đủ nhiệm vụ ($N=1, 1/1$) được mở mượt mà (`action=ALLOW`, `reason=ALLOWED_UNLOCKED_BY_TASKS`).
+> - **QUẢN TRỊ TEST COUNT CHÍNH XÁC:** Số test tăng từ 327 (24 classes) lên 352 (25 classes) với +25 audit tests mới. Toàn bộ 352 tests PASS (0 failures, 0 errors).
+> - **BẢO TỒN RUNTIME:** 0 dòng code runtime bị thay đổi. OPEN-02, 03, 05, 06, 07 tiếp tục duy trì OPEN nghiêm ngặt.
+
 ## [Phase 26.2] - 2026-09-07: GOVERNANCE RECOVERY & BASELINE INTEGRITY
 
 > [!IMPORTANT]
