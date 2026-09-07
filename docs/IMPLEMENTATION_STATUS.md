@@ -18,11 +18,11 @@
 | Phân hệ / Tính năng sản phẩm | Trạng thái chuẩn | Current Capability (Năng lực hiện có trong code) | Missing Product Behavior (Hành vi sản phẩm còn thiếu) | Blocking Dependency (Phụ thuộc gây nghẽn) | Recommended Next Phase |
 |:---|:---:|:---|:---|:---|:---|
 | **1. Hệ thống Phong Ấn (App Lock Core)** | **FOUNDATION ONLY** | Bắt sự kiện chuyển app bằng Accessibility, che overlay 0ms bằng `BlockingShieldOverlay`, hiển thị màn hình khóa `LockScreenActivity`, quản lý session, chống stale callback. | Thiếu logic phong ấn app theo Nhiệm Vụ và Bảo Khố; thiếu hiển thị tiến trình chuỗi nhiệm vụ trên màn hình khóa. | Cần có Nhiệm Vụ Đường và Bảo Khố. | **Phase 19 (App Lock & Task Integration)** |
-| **2. Bảo Khố (Vault Core)** | **FOUNDATION ONLY** | `TargetRepositoryImpl` lưu danh sách package mục tiêu và policy dạng JSON chuỗi qua Jetpack DataStore Preferences. | Thiếu UI Bảo Khố phong cách kho item, thiếu cơ chế đổi màu avatar (không dùng icon ổ khóa), thiếu tự động gỡ app khỏi task khi xóa khỏi Bảo Khố. | Cần Room Database để quản lý quan hệ thực thể. | **Phase 18 (Vault & Mission Hall Core)** |
-| **3. Nhiệm Vụ Đường (Mission Hall Core)** | **NOT IMPLEMENTED** | Chưa có file hay package nào liên quan đến task/mission trong codebase (0 code). | Thiếu toàn bộ giao diện Nhiệm Vụ Đường, nút thêm task góc dưới phải, form tối giản (Tên + Xác nhận), chọn app làm reward. | Cần Room DB schema (`TaskEntity`, `TaskAppCrossRef`). | **Phase 18 (Vault & Mission Hall Core)** |
-| **4. Quan hệ App ↔ Task (Many-to-Many)** | **NOT IMPLEMENTED** | `LockedApp` chỉ chứa thông tin package độc lập. | Thiếu quan hệ nhiều-nhiều: 1 task mở nhiều app; 1 app gắn nhiều task độc lập (không tự gộp). | Cần Room DB migration từ DataStore. | **Phase 17 (Core Data Architecture)** |
+| **2. Bảo Khố (Vault Core)** | **FOUNDATION ONLY** | `TargetRepositoryImpl` lưu cấu hình khóa qua DataStore; Phase 17 bổ sung `AppEntity`, `AppDao` trong Room đề xuất chuẩn bị cho CP6. | Thiếu UI Bảo Khố phong cách kho item, thiếu cơ chế đổi màu avatar (không dùng icon ổ khóa), thiếu liên kết nghiệp vụ với Task. | Cần UI và nghiệp vụ Bảo Khố hoàn chỉnh. | **Phase 18 (Vault & Mission Hall Foundation)** |
+| **3. Nhiệm Vụ Đường (Mission Hall Core)** | **FOUNDATION ONLY** | Đã xây dựng `TaskEntity`, `TaskDao`, `DailyTaskCompletionEntity`, `CoreDataRepository` (Technical Foundation CP3). | Thiếu UI Nhiệm Vụ Đường, nút thêm task góc dưới phải, form tối giản (Tên + Xác nhận), flow hoàn thành task. | Cần UI và flow hoàn thành nhiệm vụ. | **Phase 18 (Vault & Mission Hall Foundation)** |
+| **4. Quan hệ App ↔ Task (Many-to-Many)** | **FOUNDATION ONLY** | Đã xây dựng `TaskAppCrossRef`, `TaskAppCrossRefDao`, `CoreDataRepository` (Technical Foundation CP6). Hỗ trợ 1 task nhiều app, 1 app nhiều task độc lập, cascade deletion. | Thiếu logic liên kết trên UI và cơ chế kích hoạt phong ấn app khi gắn task. | Cần tích hợp với App Lock và UI Bảo Khố. | **Phase 18 / Phase 19** |
 | **5. Luồng Mở Khóa (Unlock Rule)** | **OPEN** | `PolicyEngine` chỉ đánh giá theo khung giờ Schedule và Daily Limit phút. | Thiếu cơ chế giải phong ấn theo hoàn thành nhiệm vụ. | **OPEN-01** (Chờ Ký chủ chốt công thức 2/3 nhiệm vụ). | Chờ chốt OPEN-01 |
-| **6. Chu kỳ Ngày & Reset 04:00 (Daily Cycle)** | **PARTIAL** | `UsageTracker` có cơ chế tự reset ngày khi phát hiện chuyển ngày, nhưng đang dùng mốc `00:00:00` nửa đêm. | Mâu thuẫn mốc giờ: Canonical Design yêu cầu reset vào đúng **04:00:00 sáng (Giờ Dần)**; task bắt đầu trước 04:00 thuộc chu kỳ cũ. | Cần refactor `UsageTracker` dùng `BusinessDayProvider`. | **Phase 17 (Daily Cycle 04:00 Alignment)** |
+| **6. Chu kỳ Ngày & Reset 04:00 (Daily Cycle)** | **DONE** | Đã triển khai `BusinessDayProvider` (04:00:00 boundary), tích hợp `UsageTracker` phân bổ thời lượng qua 04:00, task bắt đầu trước 04:00 thuộc cycle cũ. Ma trận 12 kịch bản PASS 100%. (Đạt CP5). | Không. Đã tuân thủ 100% Canonical Design V2 (Mục 8). | Không. | **Hoàn thành trong Phase 17** |
 | **7. Tu Luyện (Cultivation Core)** | **NOT IMPLEMENTED** | Chưa có dòng code nào trong codebase (0 code). | Thiếu toàn bộ module Tu Luyện rèn luyện mở rộng. | Cần Core Task và Điểm Tu Vi hoạt động ổn định. | **Phase 20 (Cultivation & Progression)** |
 | **8. Bí Cảnh (Secret Realm)** | **NOT IMPLEMENTED** | Chưa có code. | Thiếu nhiệm vụ Bí Cảnh thưởng 1 điểm tu vi. | Phụ thuộc Tu Luyện Core và Điểm Tu Vi. | **Phase 20 (Cultivation & Progression)** |
 | **9. Tháp Thí Luyện (Trial Tower)** | **OPEN** | Chưa có code. | Thiếu thử thách theo tầng, logic không cộng điểm lại cho tầng đã qua, ngoại lệ tầng 4. | **OPEN-03** (Chờ Ký chủ chốt công thức Tháp và tầng 4). | Chờ chốt OPEN-03 |
@@ -38,12 +38,12 @@
 
 ---
 
-## TỔNG KẾT BẢNG TRẠNG THÁI
-- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **0 phân hệ**.
-- **PARTIAL (Có một phần nghiệp vụ, nhưng sai mốc giờ):** **1 phân hệ** (Chu kỳ ngày — sai mốc 04:00).
-- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có nghiệp vụ):** **3 phân hệ** (Hệ thống Phong Ấn kỹ thuật, Bảo Khố kỹ thuật, An toàn tầng OS).
-- **NOT IMPLEMENTED (Hoàn toàn chưa xây dựng):** **8 phân hệ** (Nhiệm Vụ Đường, Quan hệ App-Task, Tu Luyện, Bí Cảnh, Thương Thành, Túi Trữ Vật, Voucher, Khí Linh AI Core).
-- **OPEN (Chờ quyết định chính thức từ Ký chủ):** **6 phân hệ** (Công thức 2/3 nhiệm vụ, Công thức điểm, Tháp Thí Luyện, Lược đồ DB, Memory Cloud, UI Tokens).
+## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 17)
+- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **1 phân hệ** (Chu kỳ ngày 04:00 — CP5).
+- **PARTIAL (Có một phần nghiệp vụ):** **0 phân hệ**.
+- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có UI/nghiệp vụ đầy đủ):** **5 phân hệ** (Hệ thống Phong Ấn kỹ thuật, Bảo Khố kỹ thuật, Nhiệm Vụ Đường kỹ thuật, Quan hệ App-Task kỹ thuật, An toàn tầng OS).
+- **NOT IMPLEMENTED (Hoàn toàn chưa xây dựng):** **6 phân hệ** (Tu Luyện, Bí Cảnh, Thương Thành, Túi Trữ Vật, Voucher, Khí Linh AI Core).
+- **OPEN (Chờ quyết định chính thức từ Ký chủ):** **6 phân hệ** (Công thức 2/3 nhiệm vụ, Công thức điểm, Tháp Thí Luyện, Lược đồ DB chính thức, Memory Cloud, UI Tokens).
 
 > **KẾT LUẬN CỐT LÕI:**  
 > Dự án đang sở hữu một **Nền tảng Kỹ thuật Thực thi (Technical Foundation)** cực kỳ vững chắc và đã đạt chuẩn phát hành ở tầng kỹ thuật, nhưng **TOÀN BỘ CÁC TÍNH NĂNG SẢN PHẨM NGHIỆP VỤ TIÊN HIỆP VẪN ĐANG Ở TRẠNG THÁI CHƯA TRIỂN KHAI HOẶC ĐANG MỞ**. Tuyệt đối không được báo cáo là sản phẩm đã hoàn chỉnh hoặc sẵn sàng sản xuất.

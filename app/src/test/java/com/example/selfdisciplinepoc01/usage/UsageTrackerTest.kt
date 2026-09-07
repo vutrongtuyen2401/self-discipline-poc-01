@@ -156,26 +156,26 @@ class UsageTrackerTest {
         assertEquals(25_000L, tracker.getTodayUsage("com.android.chrome"))
     }
 
-    // 9. Midnight split: session crossing midnight splits duration between days
+    // 9. Daily cycle 04:00 split: session crossing 04:00 boundary splits duration between business days
     @Test
-    fun test9_midnightSplit_splitsBetweenDays() {
-        // Start session at 23:55:00 on Sep 3 (5 minutes before midnight)
-        val clock = TestClock.at(2026, 9, 3, 23, 55, 0, zoneId = testZone)
+    fun test9_dailyCycle0400Split_splitsBetweenDays() {
+        // Start session at 03:55:00 on Sep 4 (5 minutes before 04:00 boundary, belongs to Sep 3 business day)
+        val clock = TestClock.at(2026, 9, 4, 3, 55, 0, zoneId = testZone)
         val tracker = UsageTracker(clock = clock, zoneId = testZone)
 
         tracker.startSession("com.android.chrome")
 
-        // Advance 10 minutes (600,000 ms) to 00:05:00 on Sep 4
+        // Advance 10 minutes (600,000 ms) to 04:05:00 on Sep 4 (crosses 04:00 into Sep 4 business day)
         clock.advanceBoth(600_000L)
 
-        // Stop session on Sep 4
+        // Stop session at 04:05
         tracker.stopSession("com.android.chrome")
 
-        // Check usage on Sep 4 (today according to clock): exactly 5 minutes (300,000 ms)
+        // Check usage on Sep 4 business day (today according to 04:00 cycle): exactly 5 minutes (300,000 ms)
         assertEquals(300_000L, tracker.getTodayUsage("com.android.chrome"))
 
-        // Check usage for Sep 3 by setting clock back to Sep 3 wall time
-        clock.setWallTime(TestClock.at(2026, 9, 3, 23, 59, zoneId = testZone).wallTimeMillis())
+        // Check usage for Sep 3 business day by setting clock back before 04:00 (e.g. 03:50 on Sep 4)
+        clock.setWallTime(TestClock.at(2026, 9, 4, 3, 50, zoneId = testZone).wallTimeMillis())
         assertEquals(300_000L, tracker.getTodayUsage("com.android.chrome"))
     }
 

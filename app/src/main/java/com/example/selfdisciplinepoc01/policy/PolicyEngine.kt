@@ -1,5 +1,6 @@
 package com.example.selfdisciplinepoc01.policy
 
+import android.util.Log
 import com.example.selfdisciplinepoc01.target.model.LockedApp
 import com.example.selfdisciplinepoc01.target.repository.TargetRepository
 import com.example.selfdisciplinepoc01.time.Clock
@@ -29,8 +30,15 @@ class PolicyEngine(
     private val targetRepository: TargetRepository,
     private val usageProvider: UsageProvider,
     private val clock: Clock = SystemClockImpl(),
-    private val zoneId: ZoneId = ZoneId.systemDefault()
+    private val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() }
 ) {
+
+    constructor(
+        targetRepository: TargetRepository,
+        usageProvider: UsageProvider,
+        clock: Clock = SystemClockImpl(),
+        zoneId: ZoneId
+    ) : this(targetRepository, usageProvider, clock, { zoneId })
 
     /**
      * Evaluates policy for [packageName].
@@ -62,7 +70,8 @@ class PolicyEngine(
         // 3. If schedule is active => LOCK
         if (hasSchedule) {
             val nowWall = clock.wallTimeMillis()
-            if (ScheduleEvaluator.isWithinSchedule(schedule, nowWall, zoneId)) {
+            val currentZone = zoneIdProvider()
+            if (ScheduleEvaluator.isWithinSchedule(schedule, nowWall, currentZone)) {
                 return PolicyDecision.LOCK
             }
         }
@@ -71,6 +80,7 @@ class PolicyEngine(
         if (hasLimit) {
             val todayUsage = usageProvider.getTodayUsage(app.packageName)
             val limitMillis = limit!!.limitMillis
+            Log.d(TAG, "[POLICY: EVAL_LIMIT] pkg=${app.packageName}, todayUsage=${todayUsage}ms, limitMillis=${limitMillis}ms")
             if (todayUsage >= limitMillis) {
                 return PolicyDecision.LOCK
             }
@@ -78,5 +88,9 @@ class PolicyEngine(
 
         // 5. Otherwise => ALLOW (policies are configured, but neither condition is currently violated)
         return PolicyDecision.ALLOW
+    }
+
+    companion object {
+        private const val TAG = "PolicyEngine"
     }
 }

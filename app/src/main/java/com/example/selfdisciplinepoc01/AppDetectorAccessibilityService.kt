@@ -8,20 +8,31 @@ import android.content.IntentFilter
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLoggerProvider
 import com.example.selfdisciplinepoc01.overlay.BlockingShieldOverlay
 import com.example.selfdisciplinepoc01.policy.PolicyDecision
 import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
+import com.example.selfdisciplinepoc01.policy.ScheduleWatcher
+import com.example.selfdisciplinepoc01.policy.ScheduleWatcherImpl
 import com.example.selfdisciplinepoc01.usage.UsageLimitWatcher
 import com.example.selfdisciplinepoc01.usage.UsageLimitWatcherImpl
 import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
 
 enum class LockReason {
     ACCESSIBILITY_EVENT,
-    DAILY_LIMIT
+    DAILY_LIMIT,
+    SCHEDULE_DEADLINE
 }
 
 class AppDetectorAccessibilityService : AccessibilityService() {
+
+    private val logger: DiagnosticLogger by lazy {
+        DiagnosticLoggerProvider.getLogger()
+    }
 
     private val targetRepository by lazy {
         TargetRepositoryProvider.getRepository(applicationContext)
@@ -46,6 +57,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         )
     }
 
+    private val scheduleWatcher: ScheduleWatcher by lazy {
+        ScheduleWatcherImpl(
+            targetRepository = targetRepository,
+            policyEngine = policyEngine,
+            onScheduleLocked = { pkg ->
+                handleScheduleDeadlineReached(pkg)
+            }
+        )
+    }
+
     private var blockingShieldOverlay: BlockingShieldOverlay? = null
 
     // Screen State Receiver for accurate usage pause on Screen OFF
@@ -53,9 +74,10 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    Log.i(TAG, "[SCREEN_RECEIVER] Screen OFF received -> pausing usage and limit watcher")
+                    Log.i(TAG, "[SCREEN_RECEIVER] Screen OFF received -> pausing usage and watchers")
                     usageTracker.onScreenOff()
                     usageLimitWatcher.onForegroundChanged(null)
+                    scheduleWatcher.onForegroundChanged(null)
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     Log.i(TAG, "[SCREEN_RECEIVER] Screen ON received -> awaiting foreground event")
@@ -76,22 +98,36 @@ class AppDetectorAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.SERVICE_CREATED,
+                message = "AppDetectorAccessibilityService created"
+            )
+        )
         if (blockingShieldOverlay == null) {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
         usageLimitWatcher.start()
+        scheduleWatcher.start()
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         isRunning = true
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.SERVICE_CONNECTED,
+                message = "AppDetectorAccessibilityService connected"
+            )
+        )
         if (blockingShieldOverlay == null) {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
         usageLimitWatcher.start()
+        scheduleWatcher.start()
         Log.d(TAG, "AppDetectorAccessibilityService connected")
     }
 
@@ -101,9 +137,13 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_SCREEN_ON)
             }
-            registerReceiver(screenReceiver, filter)
-            isScreenReceiverRegistered = true
-            Log.d(TAG, "Screen state receiver registered")
+            try {
+                registerReceiver(screenReceiver, filter)
+                isScreenReceiverRegistered = true
+                Log.d(TAG, "Screen state receiver registered")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error registering screen receiver", e)
+            }
         }
     }
 
@@ -125,9 +165,17 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             TAG,
             "[LOCKSCREEN_LIFECYCLE] onResume/onStart (sessionId=$sessionId): isLockScreenVisible: $prevVisible -> true"
         )
-        // LockScreen is NOT target usage: stop any active target session and cancel limit watcher
+        logger.debug(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_RESUMED,
+                message = "LockScreen resumed/visible on screen (sessionId=$sessionId)",
+                sessionId = sessionId
+            )
+        )
+        // LockScreen is NOT target usage: stop any active target session and cancel limit/schedule watchers
         usageTracker.stopSession()
         usageLimitWatcher.onForegroundChanged(null)
+        scheduleWatcher.onForegroundChanged(null)
 
         // Hand-off shield when LockScreen is active and confirmed visible
         blockingShieldOverlay?.hide("handoff_to_lockscreen (sessionId=$sessionId)")
@@ -153,6 +201,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         )
         usageTracker.stopSession()
         usageLimitWatcher.onForegroundChanged(null)
+        scheduleWatcher.onForegroundChanged(null)
         blockingShieldOverlay?.hide("lockscreen_stopped (sessionId=$sessionId)")
     }
 
@@ -176,6 +225,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         )
         usageTracker.stopSession()
         usageLimitWatcher.onForegroundChanged(null)
+        scheduleWatcher.onForegroundChanged(null)
         blockingShieldOverlay?.hide("lockscreen_exited (sessionId=$sessionId)")
     }
 
@@ -195,8 +245,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             TAG,
             "[LOCKSCREEN_LIFECYCLE] onDestroy (sessionId=$sessionId): isLockScreenVisible: $prevVisible -> false | cooldown reset -> 0L"
         )
+        logger.debug(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_DESTROYED,
+                message = "LockScreen destroyed (sessionId=$sessionId)",
+                sessionId = sessionId
+            )
+        )
         usageTracker.stopSession()
         usageLimitWatcher.onForegroundChanged(null)
+        scheduleWatcher.onForegroundChanged(null)
         blockingShieldOverlay?.hide("lockscreen_destroyed (sessionId=$sessionId)")
     }
 
@@ -204,11 +262,30 @@ class AppDetectorAccessibilityService : AccessibilityService() {
      * Deadline callback from [UsageLimitWatcher] when daily usage reaches the limit in real-time.
      */
     private fun handleLimitDeadlineReached(packageName: String) {
+        if (!isRunning) {
+            Log.w(TAG, "[WATCHER: CALLBACK_IGNORED] Bỏ qua callback limit deadline cho $packageName vì service đã dừng")
+            return
+        }
         Log.i(TAG, "[WATCHER: CALLBACK] Deadline reached for $packageName -> launching lock session")
         usageTracker.stopSession(packageName)
         val now = SystemClock.elapsedRealtime()
         val t1 = SystemClock.elapsedRealtimeNanos()
         launchLockSession(packageName, LockReason.DAILY_LIMIT, now, t1)
+    }
+
+    /**
+     * Deadline callback from [ScheduleWatcher] when schedule boundary transitions to lock in real-time.
+     */
+    private fun handleScheduleDeadlineReached(packageName: String) {
+        if (!isRunning) {
+            Log.w(TAG, "[SCHEDULE_WATCHER: CALLBACK_IGNORED] Bỏ qua callback schedule deadline cho $packageName vì service đã dừng")
+            return
+        }
+        Log.i(TAG, "[SCHEDULE_WATCHER: CALLBACK] Schedule boundary reached for $packageName -> launching lock session")
+        usageTracker.stopSession(packageName)
+        val now = SystemClock.elapsedRealtime()
+        val t1 = SystemClock.elapsedRealtimeNanos()
+        launchLockSession(packageName, LockReason.SCHEDULE_DEADLINE, now, t1)
     }
 
     /**
@@ -235,12 +312,32 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             TAG,
             "[CHECK: TARGET_LOCKED_PKG] Khóa package ($packageName, reason=$reason). prevPkg='$prevPkg', isNewTransition=$isNewTransition, isLockScreenVisible=$isLockScreenVisible, isChromeLocked=$isChromeLockedForCurrentTransition, elapsedSinceLastLaunch=${elapsedSinceLastLaunch}ms (cooldown=${COOLDOWN_MS}ms)"
         )
+        logger.debug(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCK_DECISION,
+                message = "Evaluating lock launch for $packageName (reason=$reason)",
+                packageName = packageName,
+                lockReason = reason,
+                currentForegroundPackage = prevPkg,
+                elapsedTimestamp = elapsedSinceLastLaunch
+            )
+        )
 
         // A. If LockScreenActivity is ALREADY active and visible on screen, do NOT duplicate launch
         if (isLockScreenVisible) {
             Log.w(
                 TAG,
                 "[DECISION: SKIP] BỎ QUA không launch. LockScreenActivity đang hiển thị trên màn hình (isLockScreenVisible=true)."
+            )
+            logger.warn(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.LOCK_LAUNCH_REJECTED,
+                    message = "Lock launch rejected by Rule A (LockScreen already visible)",
+                    packageName = packageName,
+                    lockReason = reason,
+                    currentForegroundPackage = prevPkg,
+                    rejectionReason = "RULE_A_LOCKSCREEN_VISIBLE"
+                )
             )
             return
         }
@@ -251,6 +348,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 TAG,
                 "[DECISION: SKIP] BỎ QUA không launch. Sự kiện trùng lặp nội bộ target trong cùng session (prevPkg='$prevPkg', target đã ở foreground liên tục). Không launch lặp lại."
             )
+            logger.warn(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.LOCK_LAUNCH_REJECTED,
+                    message = "Lock launch rejected by Rule B (Intra-session duplicate)",
+                    packageName = packageName,
+                    lockReason = reason,
+                    currentForegroundPackage = prevPkg,
+                    rejectionReason = "RULE_B_INTRA_SESSION_DUPLICATE"
+                )
+            )
             return
         }
 
@@ -259,6 +366,17 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             Log.w(
                 TAG,
                 "[DECISION: SKIP] BỎ QUA không launch. Cooldown active cho cùng target transition (${elapsedSinceLastLaunch}ms < ${COOLDOWN_MS}ms)."
+            )
+            logger.warn(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.LOCK_LAUNCH_REJECTED,
+                    message = "Lock launch rejected by Rule C (Cooldown active: ${elapsedSinceLastLaunch}ms < ${COOLDOWN_MS}ms)",
+                    packageName = packageName,
+                    lockReason = reason,
+                    currentForegroundPackage = prevPkg,
+                    rejectionReason = "RULE_C_COOLDOWN_ACTIVE",
+                    elapsedTimestamp = elapsedSinceLastLaunch
+                )
             )
             return
         }
@@ -274,6 +392,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         Log.i(
             TAG,
             "[DECISION: LAUNCH] ĐỦ ĐIỀU KIỆN LAUNCH (sessionId=$launchSessionId, reason=$reason, isNewTransition=$isNewTransition, prevPkg='$prevPkg'). Cập nhật: isChromeLocked: $prevSessionState -> true, lastLockLaunchTimestamp=$now"
+        )
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCK_LAUNCH_ACCEPTED,
+                message = "Lock launch accepted for $packageName (sessionId=$launchSessionId, reason=$reason)",
+                packageName = packageName,
+                sessionId = launchSessionId,
+                lockReason = reason,
+                currentForegroundPackage = prevPkg
+            )
         )
 
         // Step 4 Phase 07-B: Show BlockingShieldOverlay immediately upon LAUNCH decision
@@ -295,10 +423,30 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 TAG,
                 "[LAUNCH: REQUEST_COMPLETED] startActivity() đã gửi request thành công sang ActivityTaskManager (sessionId=$launchSessionId, reason=$reason)"
             )
+            logger.info(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.LOCK_SESSION_STARTED,
+                    message = "Lock session started successfully for $packageName (sessionId=$launchSessionId, reason=$reason)",
+                    packageName = packageName,
+                    sessionId = launchSessionId,
+                    lockReason = reason
+                )
+            )
         } catch (exception: Exception) {
             Log.e(
                 TAG,
                 "[LAUNCH: EXCEPTION] Lỗi khi gọi startActivity cho package: $packageName",
+                exception
+            )
+            logger.error(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.LOCK_LAUNCH_REJECTED,
+                    message = "Exception during startActivity for $packageName: ${exception.message}",
+                    packageName = packageName,
+                    sessionId = launchSessionId,
+                    lockReason = reason,
+                    rejectionReason = "START_ACTIVITY_EXCEPTION"
+                ),
                 exception
             )
             blockingShieldOverlay?.hide("startActivity_exception")
@@ -322,6 +470,15 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 TAG,
                 "[EVENT: RECEIVED] pkg=$packageName, class=$className | lastForegroundPackage=$lastForegroundPackage, isLockScreenVisible=$isLockScreenVisible, isChromeLocked=$isChromeLockedForCurrentTransition, elapsedSinceLastLaunch=${elapsedSinceLastLaunch}ms"
             )
+            logger.debug(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.FOREGROUND_EVENT,
+                    message = "Window state changed: $packageName ($className)",
+                    packageName = packageName,
+                    currentForegroundPackage = lastForegroundPackage,
+                    timestampMillis = now
+                )
+            )
 
             // 1. Event belongs to this POC application itself
             if (packageName == applicationContext.packageName) {
@@ -330,30 +487,65 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 if (className.contains("LockScreenActivity")) {
                     isLockScreenVisible = true
                     blockingShieldOverlay?.hide("self_pkg_lockscreen_active")
-                    // LockScreen visible: stop target usage and cancel limit watcher
+                    // LockScreen visible: stop target usage and cancel watchers
                     usageTracker.stopSession()
                     usageLimitWatcher.onForegroundChanged(null)
+                    scheduleWatcher.onForegroundChanged(null)
                 }
                 Log.d(
                     TAG,
                     "[CHECK: SELF_PKG] Sự kiện từ POC app ($packageName, class=$className). lastForegroundPackage: '$prevPkg' -> '$packageName' | isLockScreenVisible=$isLockScreenVisible | isChromeLocked giữ nguyên: $isChromeLockedForCurrentTransition"
+                )
+                logger.debug(
+                    DiagnosticEvent(
+                        type = DiagnosticEventType.TARGET_IGNORED,
+                        message = "Self POC package event ignored: $packageName ($className)",
+                        packageName = packageName,
+                        currentForegroundPackage = prevPkg
+                    )
                 )
                 return
             }
 
             // 2. Policy Evaluation: LOCK or ALLOW
             val policyDecision = policyEngine.evaluate(packageName)
+            logger.debug(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.POLICY_EVALUATION,
+                    message = "Policy evaluated for $packageName: $policyDecision",
+                    packageName = packageName,
+                    currentForegroundPackage = lastForegroundPackage
+                )
+            )
 
             if (policyDecision == PolicyDecision.ALLOW) {
                 val target = targetRepository.getTarget(packageName)
                 if (target != null && target.enabled) {
-                    // Allowed target app in foreground: track usage (idempotent) and watch limit deadline
+                    // Allowed target app in foreground: track usage (idempotent) and watch limit/schedule deadlines
                     usageTracker.startSession(packageName)
                     usageLimitWatcher.onForegroundChanged(packageName)
+                    scheduleWatcher.onForegroundChanged(packageName)
+                    logger.debug(
+                        DiagnosticEvent(
+                            type = DiagnosticEventType.TARGET_CHANGED,
+                            message = "Allowed target app in foreground: $packageName",
+                            packageName = packageName,
+                            currentForegroundPackage = lastForegroundPackage
+                        )
+                    )
                 } else {
-                    // Non-target app (e.g. Launcher, Settings, System UI): stop previous active usage and clear watcher
+                    // Non-target app (e.g. Launcher, Settings, System UI): stop previous active usage and clear watchers
                     usageTracker.stopSession()
                     usageLimitWatcher.onForegroundChanged(null)
+                    scheduleWatcher.onForegroundChanged(null)
+                    logger.debug(
+                        DiagnosticEvent(
+                            type = DiagnosticEventType.NON_TARGET_FOREGROUND,
+                            message = "Non-target app in foreground: $packageName",
+                            packageName = packageName,
+                            currentForegroundPackage = lastForegroundPackage
+                        )
+                    )
                 }
 
                 blockingShieldOverlay?.hide("allowed_pkg: $packageName")
@@ -371,9 +563,10 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // Target is LOCKED: stop ongoing usage and cancel watcher
+            // Target is LOCKED: stop ongoing usage and cancel watchers
             usageTracker.stopSession(packageName)
             usageLimitWatcher.onForegroundChanged(null)
+            scheduleWatcher.onForegroundChanged(null)
 
             // 3. Target locked package detected -> Invoke shared lock session entry point
             launchLockSession(packageName, LockReason.ACCESSIBILITY_EVENT, now, t1)
@@ -382,15 +575,29 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.w(TAG, "AppDetectorAccessibilityService interrupted")
+        logger.warn(
+            DiagnosticEvent(
+                type = DiagnosticEventType.SERVICE_INTERRUPTED,
+                message = "AppDetectorAccessibilityService interrupted"
+            )
+        )
         usageLimitWatcher.stop()
+        scheduleWatcher.stop()
         usageTracker.stopSession()
         blockingShieldOverlay?.cleanup()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.SERVICE_DESTROYED,
+                message = "AppDetectorAccessibilityService destroyed"
+            )
+        )
         unregisterScreenReceiver()
         usageLimitWatcher.stop()
+        scheduleWatcher.stop()
         usageTracker.stopSession()
         blockingShieldOverlay?.cleanup()
         blockingShieldOverlay = null
@@ -435,6 +642,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
         fun onPolicyUpdated(packageName: String) {
             instance?.usageLimitWatcher?.onPolicyUpdated(packageName)
+            instance?.scheduleWatcher?.onPolicyUpdated(packageName)
         }
     }
 }

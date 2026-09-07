@@ -139,3 +139,28 @@ Tất cả các quyết định dưới đây được trích xuất trực ti�
 - **Phase 16 là giai đoạn AUDIT & GOVERNANCE thuần túy.**
 - **KHÔNG KHÓA THÊM BẤT KỲ BUSINESS RULE MỚI NÀO.**
 - Toàn bộ các mục OPEN tiếp tục duy trì trạng thái mở cho đến khi Ký chủ phê duyệt bằng quyết định riêng.
+
+---
+
+## 6. QUYẾT ĐỊNH KỸ THUẬT & QUẢN TRỊ TRONG PHASE 17 (PHASE 17 TECHNICAL ALIGNMENT & DATA FOUNDATION)
+
+### 6.1. Hiện Thực Hóa Chu Kỳ Ngày 04:00 (DEC-02 Implementation)
+- **Abstraction:** Đưa vào sử dụng `BusinessDayProvider` với `boundaryHour = 4`, `boundaryMinute = 0`.
+- **Tách bạch thời gian:**
+  - **Wall Clock + ZoneId:** Dùng cho chu kỳ ngày nghiệp vụ (Business Day), ngày lịch, lịch trình khóa (Schedule).
+  - **Elapsed Realtime:** Dùng riêng cho đo lường thời lượng phiên (duration / session timing).
+- **Tích hợp:** `UsageTracker` phân bổ thời lượng sử dụng qua mốc 04:00; các phiên chạy qua nửa đêm (23:30 - 01:30) vẫn nằm trong cùng một Business Day.
+
+### 6.2. Nền Tảng Dữ Liệu Cốt Lõi Đề Xuất (Core Data Architecture Proposal)
+- **Cơ chế lưu trữ:** Đưa vào Room Database (`AppDatabase`) với 4 Entity đề xuất:
+  - `AppEntity` (Bảo Khố)
+  - `TaskEntity` (Nhiệm Vụ Đường)
+  - `TaskAppCrossRef` (Quan hệ Nhiều - Nhiều giữa Task và App)
+  - `DailyTaskCompletionEntity` (Trạng thái hoàn thành gắn với Business Date 04:00)
+- **Quản trị OPEN-05:**
+  - **OPEN-05 VẪN Ở TRẠNG THÁI OPEN.**
+  - Cấu trúc Room Database chỉ là **Nền tảng kỹ thuật đề xuất (Technical Foundation Proposal)** cho Checkpoints CP3, CP5, CP6, không phải schema chính thức đã chốt.
+- **Ranh giới Coexistence (Song song an toàn):**
+  - **DataStore hiện tại:** Giữ nguyên 100% cho cấu hình khóa (`target_packages`, `policy_configs`, `daily_limits`, `schedules`, `usage_records`) phục vụ runtime App Lock. Tuyệt đối không xóa bỏ hay di trú mù.
+  - **Room Database đề xuất:** Chuẩn bị sẵn repository abstraction (`CoreDataRepository`) cho việc phát triển các module sản phẩm ở các phase sau.
+

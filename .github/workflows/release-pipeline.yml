@@ -1,0 +1,119 @@
+name: Production Release Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      sign_artifacts:
+        description: 'Enable Production Signing with CI Secrets'
+        required: false
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build, Test & Package Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: 4. Make gradlew Executable
+        run: chmod +x gradlew
+
+      - name: 5. Clean & Run Unit / Regression Tests
+        run: ./gradlew clean test --no-daemon
+
+      - name: 6. Build Release Artifacts (APK & AAB)
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: 7. Sign Release Artifacts (Conditional on Secrets)
+        id: sign
+        if: ${{ (inputs.sign_artifacts == true || startsWith(github.ref, 'refs/tags/v')) && env.HAS_SECRETS == 'true' }}
+        env:
+          HAS_SECRETS: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "Starting production signing process..."
+          KEYSTORE_PATH="${RUNNER_TEMP}/release.keystore"
+          
+          # Decode keystore safely into temporary runner path
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          
+          # 1. Sign APK using Android SDK apksigner
+          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*unsigned*.apk" | head -n 1)
+          SIGNED_APK="app/build/outputs/apk/release/app-release-prod-signed.apk"
+          
+          if [ -f "$UNSIGNED_APK" ]; then
+            $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+              --ks "$KEYSTORE_PATH" \
+              --ks-pass env:KEYSTORE_PASS \
+              --ks-key-alias "$KEY_ALIAS" \
+              --key-pass env:KEY_PASS \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --out "$SIGNED_APK" \
+              "$UNSIGNED_APK"
+            echo "APK signed successfully: $SIGNED_APK"
+          fi
+          
+          # 2. Sign AAB using jarsigner
+          AAB_FILE=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          if [ -f "$AAB_FILE" ]; then
+            jarsigner -verbose \
+              -sigalg SHA256withRSA \
+              -digestalg SHA-256 \
+              -keystore "$KEYSTORE_PATH" \
+              -storepass:env KEYSTORE_PASS \
+              -keypass:env KEY_PASS \
+              "$AAB_FILE" \
+              "$KEY_ALIAS"
+            echo "AAB signed successfully: $AAB_FILE"
+          fi
+          
+          # Immediate cleanup of private key material
+          rm -f "$KEYSTORE_PATH"
+          echo "Keystore deleted from temporary path."
+
+      - name: 8. Verify Signatures & Integrity
+        run: |
+          SIGNED_APK=$(find app/build/outputs/apk/release -name "*prod-signed*.apk" || true)
+          if [ -f "$SIGNED_APK" ]; then
+            echo "=== Verifying Signed APK ==="
+            $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs "$SIGNED_APK"
+          else
+            echo "Production-signed APK not generated in this run. Unsigned artifacts will be archived."
+          fi
+
+      - name: 9. Compute Artifact Hashes (SHA-256)
+        run: |
+          mkdir -p release-artifacts
+          cp -f app/build/outputs/apk/release/*.apk release-artifacts/ 2>/dev/null || true
+          cp -f app/build/outputs/bundle/release/*.aab release-artifacts/ 2>/dev/null || true
+          cd release-artifacts
+          sha256sum * > checksums.sha256
+          echo "=== SHA-256 Checksums ==="
+          cat checksums.sha256
+
+      - name: 10. Archive Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-${{ github.sha }}
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 30

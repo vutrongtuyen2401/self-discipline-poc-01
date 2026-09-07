@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.example.selfdisciplinepoc01.time.BusinessDayProvider
+import com.example.selfdisciplinepoc01.time.BusinessDayProviderImpl
 import com.example.selfdisciplinepoc01.time.Clock
 import com.example.selfdisciplinepoc01.time.SystemClockImpl
 import kotlinx.coroutines.CoroutineScope
@@ -21,14 +23,32 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Tracks application usage time accurately using monotonic elapsed realtime,
- * with local date determination and midnight splitting based on wall-clock time.
+ * with business day determination and 04:00 rollover splitting based on wall-clock time.
  */
 class UsageTracker(
     val clock: Clock = SystemClockImpl(),
     private val dataStore: DataStore<Preferences>? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    val zoneId: ZoneId = ZoneId.systemDefault()
+    val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() },
+    val businessDayProvider: BusinessDayProvider = BusinessDayProviderImpl()
 ) : UsageProvider {
+
+    val zoneId: ZoneId get() = zoneIdProvider()
+
+    constructor(
+        clock: Clock = SystemClockImpl(),
+        dataStore: DataStore<Preferences>? = null,
+        coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        zoneId: ZoneId
+    ) : this(clock, dataStore, coroutineScope, { zoneId }, BusinessDayProviderImpl())
+
+    constructor(
+        clock: Clock = SystemClockImpl(),
+        dataStore: DataStore<Preferences>? = null,
+        coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        zoneId: ZoneId,
+        businessDayProvider: BusinessDayProvider
+    ) : this(clock, dataStore, coroutineScope, { zoneId }, businessDayProvider)
 
     // In-memory aggregates map: key = "${YYYY-MM-DD}_${packageName}", value = usageMillis
     private val usageMap = ConcurrentHashMap<String, Long>()
@@ -124,8 +144,8 @@ class UsageTracker(
     }
 
     /**
-     * Records a completed usage duration, splitting proportionally across days
-     * if the wall clock crossed midnight.
+     * Records a completed usage duration, splitting proportionally across business days
+     * if the wall clock crossed the 04:00 business day boundary.
      */
     internal fun recordUsageSegment(
         pkg: String,
@@ -133,23 +153,22 @@ class UsageTracker(
         endWall: Long,
         elapsedDuration: Long
     ) {
-        val startDate = LocalDate.ofInstant(Instant.ofEpochMilli(startWall), zoneId)
-        val endDate = LocalDate.ofInstant(Instant.ofEpochMilli(endWall), zoneId)
+        if (elapsedDuration <= 0L) return
+        val startDate = businessDayProvider.getBusinessDate(startWall, zoneId)
+        val endDate = businessDayProvider.getBusinessDate(endWall, zoneId)
 
         if (startDate == endDate) {
-            // All duration belongs to single calendar day
+            // All duration belongs to single business day
             addUsage(startDate, pkg, elapsedDuration)
         } else if (endDate.isAfter(startDate)) {
-            // Crossed midnight: split between days
-            // Calculate midnight wall timestamp between startDate and startDate + 1
-            val midnightInstant = startDate.plusDays(1).atStartOfDay(zoneId).toInstant()
-            val midnightWall = midnightInstant.toEpochMilli()
+            // Crossed 04:00 business cycle boundary: split between cycles
+            val boundaryWall = businessDayProvider.getNextBoundaryWall(startWall, zoneId)
 
-            val wallTimeBeforeMidnight = maxOf(0L, midnightWall - startWall)
+            val wallTimeBeforeBoundary = maxOf(0L, boundaryWall - startWall)
             val wallTotal = maxOf(1L, endWall - startWall)
 
             // Allocate duration proportionally based on wall time boundary
-            val durationFirstDay = minOf(elapsedDuration, (elapsedDuration * wallTimeBeforeMidnight) / wallTotal)
+            val durationFirstDay = minOf(elapsedDuration, (elapsedDuration * wallTimeBeforeBoundary) / wallTotal)
             val durationSecondDay = maxOf(0L, elapsedDuration - durationFirstDay)
 
             addUsage(startDate, pkg, durationFirstDay)
@@ -157,7 +176,7 @@ class UsageTracker(
 
             Log.i(
                 TAG,
-                "[USAGE: MIDNIGHT_SPLIT] $pkg crossed midnight! $startDate: +${durationFirstDay}ms, $endDate: +${durationSecondDay}ms (total: ${elapsedDuration}ms)"
+                "[USAGE: CYCLE_SPLIT] $pkg crossed 04:00 boundary! $startDate: +${durationFirstDay}ms, $endDate: +${durationSecondDay}ms (total: ${elapsedDuration}ms)"
             )
         } else {
             // Wall clock moved backward during session!
@@ -174,13 +193,13 @@ class UsageTracker(
     }
 
     /**
-     * Returns total usage for [packageName] today in milliseconds, including
-     * completed sessions and the currently running active session.
+     * Returns total usage for [packageName] today in milliseconds for current business cycle,
+     * including completed sessions and the currently running active session.
      */
     override fun getTodayUsage(packageName: String): Long {
-        val today = LocalDate.ofInstant(Instant.ofEpochMilli(clock.wallTimeMillis()), zoneId)
+        val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), zoneId)
         val key = makeKey(today, packageName)
-        var total = usageMap[key] ?: 0L
+        var total = maxOf(0L, usageMap[key] ?: 0L)
 
         synchronized(lock) {
             if (activeUsagePackage == packageName) {
@@ -188,15 +207,15 @@ class UsageTracker(
                 val nowWall = clock.wallTimeMillis()
                 val currentDuration = maxOf(0L, nowElapsed - activeSessionStartElapsed)
 
-                val startDay = LocalDate.ofInstant(Instant.ofEpochMilli(activeSessionStartWall), zoneId)
+                val startDay = businessDayProvider.getBusinessDate(activeSessionStartWall, zoneId)
                 if (startDay == today) {
                     total += currentDuration
                 } else if (today.isAfter(startDay)) {
-                    // Session started yesterday and is still running today
-                    val midnightWall = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
-                    val wallAfterMidnight = maxOf(0L, nowWall - midnightWall)
+                    // Session started in previous business day and is still running in today's business cycle
+                    val boundaryWall = businessDayProvider.getBusinessDayStartWall(today, zoneId)
+                    val wallAfterBoundary = maxOf(0L, nowWall - boundaryWall)
                     val wallTotal = maxOf(1L, nowWall - activeSessionStartWall)
-                    val todayPortion = (currentDuration * wallAfterMidnight) / wallTotal
+                    val todayPortion = minOf(currentDuration, (currentDuration * wallAfterBoundary) / wallTotal)
                     total += todayPortion
                 }
             }
@@ -238,6 +257,8 @@ class UsageTracker(
         }
     }
 
+    fun getActiveUsagePackage(): String? = synchronized(lock) { activeUsagePackage }
+
     private fun persistAggregatesAsync() {
         if (dataStore == null) return
         val snapshotJson = serializeToJson()
@@ -266,7 +287,10 @@ class UsageTracker(
             val keys = json.keys()
             while (keys.hasNext()) {
                 val k = keys.next()
-                usageMap[k] = json.optLong(k, 0L)
+                val value = json.optLong(k, -1L)
+                if (value >= 0L && k.isNotBlank()) {
+                    usageMap[k] = value
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse usage aggregates json: $jsonStr", e)

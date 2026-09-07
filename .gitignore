@@ -11,3 +11,12 @@ app/build
 .externalNativeBuild
 .cxx
 *.log
+
+# Keystore & Signing Secrets
+*.jks
+*.keystore
+*.p12
+signing.properties
+release-keystore.properties
+*.idsig
+scratch/

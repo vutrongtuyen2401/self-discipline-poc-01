@@ -4,6 +4,40 @@ Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc
 
 ---
 
+## [Phase 17] - 2026-09-07: CORE DATA ARCHITECTURE & DAILY CYCLE 04:00 ALIGNMENT
+### Bản chất giai đoạn:
+- **Hiện thực hóa Checkpoint CP5 (Chu kỳ ngày 04:00) theo Canonical Design V2 (Mục 8).**
+- **Xây dựng Nền tảng Dữ liệu Cốt lõi Đề xuất (Technical Data Foundation) cho CP3 (Core Task) và CP6 (Vault App ↔ Task).**
+- **OPEN-05 VẪN Ở TRẠNG THÁI OPEN.**
+- Giữ nguyên 100% DataStore cho runtime App Lock; không di trú mù; bảo toàn hồi quy.
+
+### Các nội dung đã thực hiện:
+- **Chu kỳ Ngày 04:00 (Daily Cycle Alignment - CP5):**
+  - Tạo abstraction `BusinessDayProvider` và `BusinessDayProviderImpl` với mốc chuẩn `04:00:00`.
+  - Tách bạch Wall Clock (chu kỳ, lịch trình, ngày nghiệp vụ) và Elapsed Realtime (đo lường thời lượng phiên).
+  - Tích hợp `UsageTracker` xác định chu kỳ ngày theo `BusinessDayProvider`, phân bổ thời lượng sử dụng qua mốc 04:00; phiên chạy qua nửa đêm (23:30 -> 01:30) vẫn thuộc cùng 1 chu kỳ.
+  - Hỗ trợ quy tắc Canonical: Task bắt đầu trước 04:00 thuộc chu kỳ cũ, kể cả khi hoàn thành sau 04:00.
+  - Triển khai ma trận kiểm thử 12 kịch bản trong `BusinessDayProviderTest.kt` (PASS 100%).
+- **Nền tảng Dữ liệu Cốt lõi Đề xuất (Room Data Architecture Proposal):**
+  - Tạo tài liệu thiết kế chi tiết: [`docs/ROOM_SCHEMA_PROPOSAL.md`](file:///c:/Code/self-discipline-poc-01/docs/ROOM_SCHEMA_PROPOSAL.md) (Ghi rõ: `PROPOSAL — OPEN-05 REMAINS OPEN`).
+  - Thiết kế 4 Entity Room đề xuất:
+    - `AppEntity` (bảng `vault_apps` — Bảo Khố).
+    - `TaskEntity` (bảng `mission_tasks` — Nhiệm Vụ Đường tối giản).
+    - `TaskAppCrossRef` (bảng `task_app_cross_ref` — Many-to-Many giữa Task và App, Foreign Key `CASCADE`, composite PK).
+    - `DailyTaskCompletionEntity` (bảng `daily_task_completions` — lưu trạng thái hoàn thành gắn với Business Date `yyyy-MM-dd` tính từ `BusinessDayProvider`, composite PK).
+  - Thiết kế 4 DAO: `AppDao`, `TaskDao`, `TaskAppCrossRefDao`, `DailyTaskCompletionDao`.
+  - Tạo Room Database `AppDatabase` và abstraction `CoreDataRepository` / `CoreDataRepositoryImpl`.
+  - Viết bộ kiểm thử 10 kịch bản Room foundation trong `CoreDataRepositoryTest.kt` (PASS 100%).
+- **Chiến lược Coexistence & Bảo vệ Hồi quy:**
+  - Bảo toàn 100% Jetpack DataStore Preferences cho App Lock runtime (`TargetRepositoryImpl`).
+  - Không thực hiện di trú mù dữ liệu sản xuất.
+  - Không phá vỡ bất kỳ thành phần nào của Frozen Core (Accessibility, BlockingShieldOverlay, LockScreenActivity, Session Guard, Watchers).
+- **Kết quả Kiểm thử & Đóng gói:**
+  - Unit tests: **237/237 PASS** (100% thành công).
+  - Build: `assembleDebug` BUILD SUCCESSFUL.
+
+---
+
 ## [Phase 16] - 2026-09-04: CANONICAL DESIGN IMPORT & DESIGN GOVERNANCE ESTABLISHED
 ### Bản chất giai đoạn:
 - **Phase 16 là giai đoạn KIỂM TOÁN VÀ QUẢN TRỊ THIẾT KẾ (AUDIT & GOVERNANCE PHASE).**

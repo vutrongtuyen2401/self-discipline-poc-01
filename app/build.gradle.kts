@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.android)
   alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.ksp)
 }
 
 android {
@@ -16,10 +17,35 @@ android {
         versionName = "1.0"
     }
 
+    val releaseStoreFilePath = System.getenv("RELEASE_STORE_FILE") ?: (project.findProperty("RELEASE_STORE_FILE") as? String)
+    val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: (project.findProperty("RELEASE_STORE_PASSWORD") as? String)
+    val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: (project.findProperty("RELEASE_KEY_ALIAS") as? String)
+    val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: (project.findProperty("RELEASE_KEY_PASSWORD") as? String)
+
+    val isReleaseSigningConfigured = !releaseStoreFilePath.isNullOrBlank() &&
+        file(releaseStoreFilePath).exists() &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+
+    signingConfigs {
+        if (isReleaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (isReleaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -65,8 +91,14 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
 
-  // DataStore Preferences
+  // DataStore Preferences (Legacy & Runtime Foundation)
   implementation(libs.androidx.datastore.preferences)
+
+  // Room Database (Proposal Core Foundation - OPEN-05)
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
+  ksp(libs.androidx.room.compiler)
+  testImplementation(libs.androidx.room.testing)
 
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
@@ -75,5 +107,7 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation("org.json:json:20240303")
+  testImplementation("androidx.test:core:1.6.1")
+  testImplementation("org.robolectric:robolectric:4.14.1")
 }
 

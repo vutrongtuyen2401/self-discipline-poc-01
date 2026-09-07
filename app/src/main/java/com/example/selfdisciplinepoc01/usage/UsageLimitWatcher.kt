@@ -3,6 +3,10 @@ package com.example.selfdisciplinepoc01.usage
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLoggerProvider
 import com.example.selfdisciplinepoc01.policy.PolicyDecision
 import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.repository.TargetRepository
@@ -63,8 +67,17 @@ class UsageLimitWatcherImpl(
     private val usageTracker: UsageTracker,
     private val policyEngine: PolicyEngine,
     private val scheduler: LimitScheduler = HandlerLimitScheduler(),
+    private val logger: DiagnosticLogger = DiagnosticLoggerProvider.getLogger(),
     private val onLimitReached: (packageName: String) -> Unit
 ) : UsageLimitWatcher {
+
+    constructor(
+        targetRepository: TargetRepository,
+        usageTracker: UsageTracker,
+        policyEngine: PolicyEngine,
+        scheduler: LimitScheduler = HandlerLimitScheduler(),
+        onLimitReached: (packageName: String) -> Unit
+    ) : this(targetRepository, usageTracker, policyEngine, scheduler, DiagnosticLoggerProvider.getLogger(), onLimitReached)
 
     private val lock = Any()
     private var currentGeneration: Long = 0L
@@ -78,6 +91,13 @@ class UsageLimitWatcherImpl(
             scheduler.cancel()
             activePackage = null
             Log.i(TAG, "[WATCHER: STARTED] Watcher started / recovered (gen=$currentGeneration); awaiting fresh foreground event")
+            logger.info(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.USAGE_WATCHER_STARTED,
+                    message = "UsageLimitWatcher started / recovered",
+                    generation = currentGeneration
+                )
+            )
         }
     }
 
@@ -123,11 +143,22 @@ class UsageLimitWatcherImpl(
 
     override fun stop() {
         synchronized(lock) {
+            if (!isRunning) {
+                Log.d(TAG, "[WATCHER: STOP_SKIPPED] Watcher already stopped")
+                return
+            }
             isRunning = false
             currentGeneration++
             scheduler.cancel()
             activePackage = null
-            Log.d(TAG, "[WATCHER: STOPPED] Watcher completely stopped")
+            Log.i(TAG, "[WATCHER: STOPPED] Watcher completely stopped")
+            logger.info(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.USAGE_WATCHER_STOPPED,
+                    message = "UsageLimitWatcher completely stopped",
+                    generation = currentGeneration
+                )
+            )
         }
     }
 
@@ -152,6 +183,18 @@ class UsageLimitWatcherImpl(
             TAG,
             "[WATCHER: SCHEDULE] pkg=$packageName, limit=${limitMillis}ms, used=${usedMillis}ms, remaining=${remainingMillis}ms (gen=$generation)"
         )
+        logger.debug(
+            DiagnosticEvent(
+                type = DiagnosticEventType.USAGE_DEADLINE_SCHEDULED,
+                message = "Usage deadline scheduled for $packageName in ${remainingMillis}ms",
+                packageName = packageName,
+                generation = generation,
+                remainingMillis = remainingMillis,
+                currentUsageMillis = usedMillis,
+                limitMillis = limitMillis,
+                dailyLimitEnabled = true
+            )
+        )
 
         // Capture parameters for the deadline runnable
         val capturedGeneration = generation
@@ -166,15 +209,45 @@ class UsageLimitWatcherImpl(
 
     private fun handleDeadlineFired(capturedPackage: String, capturedGeneration: Long) {
         synchronized(lock) {
+            logger.debug(
+                DiagnosticEvent(
+                    type = DiagnosticEventType.USAGE_DEADLINE_CALLBACK,
+                    message = "Usage deadline callback fired for $capturedPackage (gen=$capturedGeneration)",
+                    packageName = capturedPackage,
+                    generation = capturedGeneration,
+                    watcherRunning = isRunning
+                )
+            )
+
             // 1. Stale Callback Guard: verify watcher is running, generation matches, and package matches
             if (!isRunning) {
                 Log.w(TAG, "[STALE_GUARD] Watcher is stopped, ignoring deadline callback for $capturedPackage")
+                logger.warn(
+                    DiagnosticEvent(
+                        type = DiagnosticEventType.USAGE_STALE_CALLBACK,
+                        message = "Usage deadline callback rejected: watcher stopped",
+                        packageName = capturedPackage,
+                        generation = capturedGeneration,
+                        watcherRunning = false,
+                        rejectionReason = "WATCHER_STOPPED"
+                    )
+                )
                 return
             }
             if (capturedGeneration != currentGeneration) {
                 Log.w(
                     TAG,
                     "[STALE_GUARD] Generation mismatch ($capturedGeneration != $currentGeneration), ignoring callback for $capturedPackage"
+                )
+                logger.warn(
+                    DiagnosticEvent(
+                        type = DiagnosticEventType.USAGE_STALE_CALLBACK,
+                        message = "Usage deadline callback rejected: generation mismatch ($capturedGeneration != $currentGeneration)",
+                        packageName = capturedPackage,
+                        generation = capturedGeneration,
+                        watcherRunning = true,
+                        rejectionReason = "GENERATION_MISMATCH (captured=$capturedGeneration != current=$currentGeneration)"
+                    )
                 )
                 return
             }
@@ -183,24 +256,57 @@ class UsageLimitWatcherImpl(
                     TAG,
                     "[STALE_GUARD] Package mismatch ($capturedPackage != activePackage=$activePackage), ignoring callback"
                 )
+                logger.warn(
+                    DiagnosticEvent(
+                        type = DiagnosticEventType.USAGE_STALE_CALLBACK,
+                        message = "Usage deadline callback rejected: package mismatch ($capturedPackage != activePackage=$activePackage)",
+                        packageName = capturedPackage,
+                        generation = capturedGeneration,
+                        watcherRunning = true,
+                        rejectionReason = "PACKAGE_MISMATCH (captured=$capturedPackage != active=$activePackage)"
+                    )
+                )
                 return
             }
 
             // 2. Non-blocking Policy Evaluation: NEVER blindly lock
+            val app = targetRepository.getTarget(capturedPackage)
+            val limit = app?.timeLimit
+            val usedMillis = usageTracker.getTodayUsage(capturedPackage)
+            val limitMillis = limit?.limitMillis ?: 0L
+            val isLimitExhausted = limit != null && limit.enabled && (usedMillis >= limitMillis)
             val decision = policyEngine.evaluate(capturedPackage)
-            Log.i(TAG, "[WATCHER: EVALUATED] Deadline fired for $capturedPackage -> PolicyDecision: $decision")
+            Log.i(TAG, "[WATCHER: EVALUATED] Deadline fired for $capturedPackage -> PolicyDecision: $decision, isLimitExhausted: $isLimitExhausted")
 
-            when (decision) {
-                PolicyDecision.LOCK -> {
-                    // Confirmed LOCK: notify shared lock callback
+            logger.debug(
+                DiagnosticEvent(
+                    type = if (isLimitExhausted) DiagnosticEventType.DAILY_LIMIT_EXHAUSTED else DiagnosticEventType.DAILY_LIMIT_REMAINING,
+                    message = "Usage evaluated for $capturedPackage: used=${usedMillis}ms, limit=${limitMillis}ms, decision=$decision",
+                    packageName = capturedPackage,
+                    generation = currentGeneration,
+                    remainingMillis = maxOf(0L, limitMillis - usedMillis),
+                    currentUsageMillis = usedMillis,
+                    limitMillis = limitMillis,
+                    dailyLimitEnabled = limit?.enabled ?: false
+                )
+            )
+
+            when {
+                decision == PolicyDecision.LOCK && isLimitExhausted -> {
+                    // Confirmed LOCK due to daily limit: notify shared lock callback
                     Log.i(TAG, "[WATCHER: LOCK_TRIGGERED] Daily limit reached -> invoking onLimitReached($capturedPackage)")
                     onLimitReached(capturedPackage)
                 }
-                PolicyDecision.ALLOW -> {
+                decision == PolicyDecision.ALLOW -> {
                     // Scheduler jitter or timing race: remaining usage is still below limit.
                     // Reschedule with newly recomputed remaining time!
                     Log.i(TAG, "[WATCHER: JITTER_RESCHEDULE] Still ALLOW, recomputing deadline for $capturedPackage")
                     scheduleDeadlineLocked(capturedPackage, currentGeneration)
+                }
+                else -> {
+                    // Decision is LOCK but isLimitExhausted is false (e.g. locked due to schedule)
+                    // Preserve reason ownership: do not emit DAILY_LIMIT.
+                    Log.d(TAG, "[WATCHER: PRESERVE_OWNERSHIP] Locked for other reason, skipping limit lock")
                 }
             }
         }

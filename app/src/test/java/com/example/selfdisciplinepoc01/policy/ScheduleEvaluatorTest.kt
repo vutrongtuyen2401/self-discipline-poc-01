@@ -1,7 +1,9 @@
 package com.example.selfdisciplinepoc01.policy
 
 import com.example.selfdisciplinepoc01.target.model.TimeSchedule
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -162,5 +164,113 @@ class ScheduleEvaluatorTest {
     fun startEqualsEnd_whenDisabled_returnsFalse() {
         val schedule = TimeSchedule(enabled = false, startHour = 10, startMinute = 0, endHour = 10, endMinute = 0)
         assertFalse(ScheduleEvaluator.isWithinSchedule(schedule, timeToMillis(10, 0), testZone))
+    }
+
+    // --- Boundary Calculation Tests ---
+
+    @Test
+    fun boundary_whenDisabledOrNull_returnsNull() {
+        assertNull("Null schedule has no boundary", ScheduleEvaluator.getNextBoundaryMillis(null, timeToMillis(12, 0), testZone))
+        val disabled = TimeSchedule(enabled = false, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        assertNull("Disabled schedule has no boundary", ScheduleEvaluator.getNextBoundaryMillis(disabled, timeToMillis(12, 0), testZone))
+    }
+
+    @Test
+    fun boundary_allDay_returnsNull() {
+        val allDay = TimeSchedule(enabled = true, startHour = 10, startMinute = 0, endHour = 10, endMinute = 0)
+        assertNull("All day schedule has no boundary transitions", ScheduleEvaluator.getNextBoundaryMillis(allDay, timeToMillis(12, 0), testZone))
+    }
+
+    @Test
+    fun boundary_normalSchedule_beforeStart_returnsStartToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        val now = timeToMillis(8, 30)
+        val expected = timeToMillis(9, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_normalSchedule_exactStart_returnsEndToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        val now = timeToMillis(9, 0)
+        val expected = timeToMillis(17, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_normalSchedule_inside_returnsEndToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        val now = timeToMillis(12, 0)
+        val expected = timeToMillis(17, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_normalSchedule_exactEnd_returnsStartTomorrow() {
+        val schedule = TimeSchedule(enabled = true, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        val now = timeToMillis(17, 0)
+        val tomorrowZdt = ZonedDateTime.of(testDate.plusDays(1), LocalTime.of(9, 0), testZone)
+        val expected = tomorrowZdt.toInstant().toEpochMilli()
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_normalSchedule_afterEnd_returnsStartTomorrow() {
+        val schedule = TimeSchedule(enabled = true, startHour = 9, startMinute = 0, endHour = 17, endMinute = 0)
+        val now = timeToMillis(18, 0)
+        val tomorrowZdt = ZonedDateTime.of(testDate.plusDays(1), LocalTime.of(9, 0), testZone)
+        val expected = tomorrowZdt.toInstant().toEpochMilli()
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_beforeStart_returnsStartToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        val now = timeToMillis(12, 0)
+        val expected = timeToMillis(22, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_exactStart_returnsEndTomorrow() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        val now = timeToMillis(22, 0)
+        val tomorrowZdt = ZonedDateTime.of(testDate.plusDays(1), LocalTime.of(7, 0), testZone)
+        val expected = tomorrowZdt.toInstant().toEpochMilli()
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_beforeMidnight_returnsEndTomorrow() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        val now = timeToMillis(23, 30)
+        val tomorrowZdt = ZonedDateTime.of(testDate.plusDays(1), LocalTime.of(7, 0), testZone)
+        val expected = tomorrowZdt.toInstant().toEpochMilli()
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_exactMidnight_returnsEndToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        // Midnight of testDate
+        val now = timeToMillis(0, 0)
+        val expected = timeToMillis(7, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_afterMidnight_returnsEndToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        val now = timeToMillis(5, 0)
+        val expected = timeToMillis(7, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
+    }
+
+    @Test
+    fun boundary_crossMidnight_exactEnd_returnsStartToday() {
+        val schedule = TimeSchedule(enabled = true, startHour = 22, startMinute = 0, endHour = 7, endMinute = 0)
+        val now = timeToMillis(7, 0)
+        val expected = timeToMillis(22, 0)
+        org.junit.Assert.assertEquals(expected, ScheduleEvaluator.getNextBoundaryMillis(schedule, now, testZone))
     }
 }

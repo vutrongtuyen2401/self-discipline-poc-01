@@ -41,16 +41,24 @@ import androidx.compose.ui.unit.sp
 
 import android.os.SystemClock
 import android.view.ViewTreeObserver
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
+import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLoggerProvider
 import java.util.Locale
 
 class LockScreenActivity : ComponentActivity() {
+
+    private val logger: DiagnosticLogger by lazy {
+        DiagnosticLoggerProvider.getLogger()
+    }
 
     private var currentSessionId: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val t4 = SystemClock.elapsedRealtimeNanos()
         super.onCreate(savedInstanceState)
-        currentSessionId = intent.getLongExtra(EXTRA_SESSION_ID, 0L)
+        currentSessionId = savedInstanceState?.getLong(EXTRA_SESSION_ID) ?: intent.getLongExtra(EXTRA_SESSION_ID, 0L)
         val t1 = intent.getLongExtra(EXTRA_T1_NS, 0L)
         val t2 = intent.getLongExtra(EXTRA_T2_NS, 0L)
         val t3 = intent.getLongExtra(EXTRA_T3_NS, 0L)
@@ -64,6 +72,14 @@ class LockScreenActivity : ComponentActivity() {
         }
 
         Log.d(TAG, "onCreate (sessionId=$currentSessionId)")
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_CREATED,
+                message = "LockScreenActivity created for $targetPkg (sessionId=$currentSessionId)",
+                packageName = targetPkg,
+                sessionId = currentSessionId
+            )
+        )
         if (t1 != 0L) {
             setupFirstFrameLatencyMeasurement(targetPkg, t1, t2, t3, t4)
         }
@@ -94,6 +110,13 @@ class LockScreenActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume (sessionId=$currentSessionId)")
+        logger.debug(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_RESUMED,
+                message = "LockScreenActivity resumed (sessionId=$currentSessionId)",
+                sessionId = currentSessionId
+            )
+        )
         AppDetectorAccessibilityService.onLockScreenResumed(currentSessionId)
     }
 
@@ -115,6 +138,22 @@ class LockScreenActivity : ComponentActivity() {
         }
 
         Log.d(TAG, "onNewIntent (sessionId=$currentSessionId)")
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_NEW_INTENT,
+                message = "LockScreenActivity received newIntent for $targetPkg (sessionId=$currentSessionId)",
+                packageName = targetPkg,
+                sessionId = currentSessionId
+            )
+        )
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCK_SESSION_REUSED,
+                message = "Existing LockScreenActivity instance reused for $targetPkg (sessionId=$currentSessionId)",
+                packageName = targetPkg,
+                sessionId = currentSessionId
+            )
+        )
         AppDetectorAccessibilityService.onLockScreenResumed(currentSessionId)
         if (t1 != 0L) {
             setupFirstFrameLatencyMeasurement(targetPkg, t1, t2, t3, t4)
@@ -202,6 +241,12 @@ class LockScreenActivity : ComponentActivity() {
         )
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong(EXTRA_SESSION_ID, currentSessionId)
+        Log.d(TAG, "onSaveInstanceState (sessionId=$currentSessionId)")
+    }
+
     override fun onPause() {
         Log.d(TAG, "onPause (sessionId=$currentSessionId)")
         super.onPause()
@@ -215,6 +260,13 @@ class LockScreenActivity : ComponentActivity() {
 
     override fun onDestroy() {
         Log.d(TAG, "onDestroy (sessionId=$currentSessionId)")
+        logger.info(
+            DiagnosticEvent(
+                type = DiagnosticEventType.LOCKSCREEN_DESTROYED,
+                message = "LockScreenActivity destroyed (sessionId=$currentSessionId)",
+                sessionId = currentSessionId
+            )
+        )
         super.onDestroy()
         AppDetectorAccessibilityService.onLockScreenDestroyed(currentSessionId)
     }

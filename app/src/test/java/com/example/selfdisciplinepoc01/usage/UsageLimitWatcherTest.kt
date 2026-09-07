@@ -327,11 +327,12 @@ class UsageLimitWatcherTest {
             lockedPkg = it
         }
 
-        // Target opens inside active schedule: remaining calculation still exists, but PolicyEngine returns LOCK immediately
+        // Target opens inside active schedule (0 min used < 30 min limit):
+        // Reason ownership: UsageLimitWatcher does not emit lock because daily limit is not exhausted.
         watcher.onForegroundChanged("com.test.app")
         scheduler.trigger()
 
-        assertEquals("com.test.app", lockedPkg)
+        assertNull("UsageLimitWatcher must not emit DAILY_LIMIT when limit is not exhausted", lockedPkg)
     }
 
     // 10. Duplicate onForegroundChanged does not create duplicate active callbacks
