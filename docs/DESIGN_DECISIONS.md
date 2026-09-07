@@ -302,3 +302,64 @@ Tất cả các quyết định dưới đây được trích xuất trực ti�
 ### 9.6. Quản Trị OPEN Items Trong Phase 20
 - **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
 
+---
+
+## 10. QUYẾT ĐỊNH SẢN PHẨM CHÍNH THỨC OPEN-01 (PHASE 23 — TASK-BASED UNLOCK)
+
+> [!IMPORTANT]
+> **Xác nhận Quyết định Sản phẩm:** OPEN-01 was explicitly decided by the product owner and implemented accordingly.
+
+### 10.1. Công Thức Nghiệp Vụ & Số Học Nguyên (Integer Arithmetic Formula)
+Với một Vault App có $N$ nhiệm vụ đang có hiệu lực (active, không bị lưu trữ `isArchived`, không bị xóa) và được liên kết trong chu kỳ nghiệp vụ hiện tại:
+
+$$\text{requiredCompletedTasks} = \left\lceil \frac{2 \times N}{3} \right\rceil$$
+
+Hiện thực hóa hoàn toàn bằng số học số nguyên (integer arithmetic), tuyệt đối không sử dụng số thực (floating point):
+```kotlin
+required = (2 * N + 2) / 3
+```
+
+### 10.2. Bảng Kiểm Chứng Chuẩn Hóa (Canonical Verification Table)
+| Số nhiệm vụ hiệu lực ($N$) | Nhiệm vụ hoàn thành yêu cầu (`required`) | Ghi chú điều kiện mở khóa |
+| :---: | :---: | :--- |
+| **0** | **0** | **KHÔNG MỞ KHÓA** (bắt buộc $N > 0$) $\rightarrow$ `LOCK` |
+| **1** | **1** | Cần hoàn thành 1/1 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **2** | **2** | Cần hoàn thành 2/2 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **3** | **2** | Cần hoàn thành tối thiểu 2/3 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **4** | **3** | Cần hoàn thành tối thiểu 3/4 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **5** | **4** | Cần hoàn thành tối thiểu 4/5 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **6** | **4** | Cần hoàn thành tối thiểu 4/6 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **7** | **5** | Cần hoàn thành tối thiểu 5/7 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **8** | **6** | Cần hoàn thành tối thiểu 6/8 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **9** | **6** | Cần hoàn thành tối thiểu 6/9 nhiệm vụ $\rightarrow$ `ALLOW` |
+| **10** | **7** | Cần hoàn thành tối thiểu 7/10 nhiệm vụ $\rightarrow$ `ALLOW` |
+
+### 10.3. Điều Kiện Mở Khóa (Unlock Condition)
+- **Mở khóa nghiệp vụ (`BusinessUnlockDecision.UNLOCKED`):**
+  $$\text{completedTasks} \ge \text{requiredCompletedTasks} \quad \text{VÀ} \quad N > 0$$
+- **Nếu không thỏa mãn:**
+  * Nếu $N = 0$: Trạng thái `NO_LINKED_TASKS` $\rightarrow$ `LOCK` (`LOCKED_BY_VAULT_NO_TASK`).
+  * Nếu $N > 0$ nhưng $\text{completedTasks} < \text{required}$: Trạng thái `INSUFFICIENT_COMPLETION` $\rightarrow$ `LOCK` (`LOCKED_INSUFFICIENT_TASKS`).
+
+### 10.4. Chu Kỳ Nghiệp Vụ 04:00 (Business Cycle Invariants)
+1. **Thời điểm reset:** Chu kỳ ngày bắt đầu lúc `04:00:00` hàng ngày (`BusinessDayProvider`).
+2. **Phạm vi tính toán:** Chỉ các lượt hoàn thành (`TaskCompletionEntity`) ghi nhận trong chu kỳ ngày hiện tại mới được tính vào `completedTasks`. Lượt hoàn thành ngày hôm trước không có hiệu lực cho ngày hôm nay.
+3. **Nhiệm vụ bị lưu trữ / xóa:**
+   - Khi task chuyển sang `isArchived = true` hoặc bị xóa khỏi database: ngay lập tức loại khỏi $N$ và không tính completion.
+   - Nếu toàn bộ task bị lưu trữ hoặc xóa ($N$ hiệu lực trở về 0), app tự động chuyển về trạng thái `NO_LINKED_TASKS` $\rightarrow$ `LOCK`.
+4. **Tính chất duy nhất:** Mỗi task hoàn thành chỉ tính tối đa 1 lần trong 1 chu kỳ ngày.
+5. **Quan hệ M:N (Task $\leftrightarrow$ App):**
+   - Một task liên kết nhiều app: hoàn thành task đó sẽ ghi nhận 1 lần hoàn thành cho tất cả các app liên kết.
+   - Một app liên kết nhiều task: mỗi task được tính là một đơn vị độc lập để xác định $N$ và `completedTasks`.
+6. **Ứng dụng xóa khỏi Bảo Khố:** Khi xóa app khỏi Bảo Khố rồi thêm lại, toàn bộ liên kết cũ bị xóa sạch, app trở về $N=0$ $\rightarrow$ `LOCK`.
+
+### 10.5. Độ Ưu Tiên Tuyệt Đối Của Khóa Kỹ Thuật (Technical Precedence)
+- Technical App Lock (`PolicyEngine`: Schedule và Daily Limit) luôn có độ ưu tiên tuyệt đối so với Business Unlock:
+  $$\text{Technical Decision} == \text{LOCK} \implies \text{Final Action} = \text{LOCK}$$
+- Chỉ khi Technical Lock không kích hoạt (`ALLOW`), hệ thống mới xem xét quyết định mở khóa nghiệp vụ từ `TaskUnlockPolicy`.
+
+### 10.6. Trạng Thái Quản Trị OPEN Items Trong Phase 23
+- **OPEN-01:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Đã ký duyệt và hiện thực hóa đầy đủ.
+- **OPEN-02 đến OPEN-07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.** Tuyệt đối không tự ý quyết định hay đóng các mục còn lại.
+
+

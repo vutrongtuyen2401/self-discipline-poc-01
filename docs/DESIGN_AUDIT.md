@@ -117,9 +117,9 @@ Luồng nghiệp vụ cốt lõi theo quy định tại Canonical Design V2 (M�
 - **Bước [1]:** **ĐÃ CÓ (DONE - CP4)**. Phân hệ Bảo Khố đã hoàn thành: Khám phá app cài đặt, thu nạp app, hiển thị dạng túi đồ ô item (không icon ổ khóa theo Mục 6), gỡ app cascade quan hệ chéo, re-add không tự phục hồi liên kết cũ.
 - **Bước [2]:** **ĐÃ CÓ (DONE - CP3, CP7)**. Phân hệ Nhiệm Vụ Đường đã hoàn thành: Nút thêm nhỏ góc dưới phải, dialog tối giản, hiển thị thẻ chuỗi tuần tự, danh sách chưa làm/đã xong, gắn mốc reset 04:00.
 - **Bước [3]:** **ĐÃ CÓ (DONE - CP6)**. Liên kết Task ↔ App Many-to-Many hoàn chỉnh: Mở dialog liên kết từ task, chỉ cho phép chọn app đang có trong Bảo Khố, lưu vào `TaskAppCrossRef`, cập nhật reactive trên UI thẻ nhiệm vụ.
-- **Bước [4]:** **RANH GIỚI AN TOÀN (PENDING OPEN-01)**. Đã thiết lập `TaskAppEnforcementAdapter` phân định rạch ròi giữa Product Vault và Technical App Lock; trả về `DISABLED_PENDING_OPEN_01` bảo vệ tuyệt đối quy tắc governance, không tự phát minh công thức khóa/mở khóa.
+- **Bước [4]:** **ĐÃ CÓ (DONE - Phase 20 & 23)**. Đã thiết lập `TaskAppEnforcementAdapter` phân định rạch ròi giữa Product Vault và Technical App Lock; đánh giá 2 tầng (Technical Lock ưu tiên tuyệt đối -> Business Unlock); duy trì snapshot cache đa luồng an toàn cho Accessibility Main Thread (< 0.05ms, O(1)).
 - **Bước [5]:** **ĐÃ CÓ KỸ THUẬT CHẶN (FOUNDATION ONLY)**. `AppDetectorAccessibilityService` và `BlockingShieldOverlay` phát hiện và chặn app mục tiêu thành công 100% theo Schedule/DailyLimit.
-- **Bước [6] -> [7]:** **CHỜ OPEN-01**. Cơ chế mở khóa theo hoàn thành 2/3 nhiệm vụ hoặc công thức hoàn thành chuỗi đang chờ Ký chủ phê duyệt (OPEN-01).
+- **Bước [6] -> [7]:** **ĐÃ CÓ (DONE - CP9 Phase 23)**. OPEN-01 was explicitly decided by the product owner and implemented accordingly. Cơ chế mở khóa theo hoàn thành nhiệm vụ hoạt động qua `TaskUnlockPolicy` với công thức integer arithmetic `required = (2 * N + 2) / 3`, bảng kiểm chứng $N = 0 \dots 10$, điều kiện `completedTasks >= requiredCompletedTasks AND N > 0`.
 - **Bước [8]:** **ĐÃ HOÀN THÀNH (DONE - CP5)**. Đã căn chỉnh mốc reset chu kỳ ngày tại `04:00:00` sáng (Giờ Dần) qua `BusinessDayProvider` từ Phase 17.
 
 ---
@@ -191,14 +191,14 @@ Mã nguồn hiện tại chứa một hạ tầng kỹ thuật thực thi App Lo
 ---
 
 ## 12. OPEN ITEMS (CÁC VẤN ĐỀ CHƯA CHỐT)
-Tất cả 7 mục OPEN được bảo toàn tuyệt đối trạng thái `OPEN` trong [`docs/OPEN_ITEMS.md`](file:///c:/Code/self-discipline-poc-01/docs/OPEN_ITEMS.md):
-1. **OPEN-01:** Công thức giải phong ấn "2/3 nhiệm vụ" và cách làm tròn cho mọi N.
-2. **OPEN-02:** Công thức điểm/thưởng/combo chuỗi ngày.
-3. **OPEN-03:** Công thức Tháp Thí Luyện và ngoại lệ Tầng 4.
-4. **OPEN-04:** Chi tiết kỹ thuật App Lock sau POC (chính sách quyền phụ trợ trên Android 15).
-5. **OPEN-05:** Lược đồ Room DB chính thức và chiến lược di chuyển từ DataStore.
-6. **OPEN-06:** Chính sách retention và đồng bộ Cloud của Memory/History.
-7. **OPEN-07:** State Machine giao diện, Animation tokens và Audio assets (giọng loli).
+Tình trạng các mục OPEN trong [`docs/OPEN_ITEMS.md`](file:///c:/Code/self-discipline-poc-01/docs/OPEN_ITEMS.md):
+1. **OPEN-01:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Đã ký duyệt Quyết định Sản phẩm và hiện thực hóa ở Phase 23 (`TaskUnlockPolicy`).
+2. **OPEN-02:** **OPEN** — Công thức điểm/thưởng/combo chuỗi ngày.
+3. **OPEN-03:** **OPEN** — Công thức Tháp Thí Luyện và ngoại lệ Tầng 4.
+4. **OPEN-04:** **OPEN** — Chi tiết kỹ thuật App Lock sau POC (chính sách quyền phụ trợ trên Android 15).
+5. **OPEN-05:** **OPEN** — Lược đồ Room DB chính thức và chiến lược di chuyển từ DataStore.
+6. **OPEN-06:** **OPEN** — Chính sách retention và đồng bộ Cloud của Memory/History.
+7. **OPEN-07:** **OPEN** — State Machine giao diện, Animation tokens và Audio assets (giọng loli).
 
 ---
 

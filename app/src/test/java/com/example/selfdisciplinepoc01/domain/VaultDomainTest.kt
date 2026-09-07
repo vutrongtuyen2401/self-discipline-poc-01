@@ -370,13 +370,13 @@ class VaultDomainTest {
     }
 
     // ==================================================
-    // GROUP E: OPEN-01 SAFETY BARRIERS
+    // GROUP E: OPEN-01 TASK-BASED UNLOCK STATUS
     // ==================================================
 
     @Test
-    fun test20_open01Protection_enforcementIsExplicitlyDisabled() {
+    fun test20_open01Implemented_enforcementIsActive() {
         val status = enforcementAdapter.getEnforcementStatus()
-        assertEquals(TaskAppEnforcementStatus.DISABLED_PENDING_OPEN_01, status)
+        assertEquals(TaskAppEnforcementStatus.TASK_BASED_UNLOCK_ACTIVE, status)
     }
 
     @Test

@@ -2,6 +2,65 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 23] - 2026-09-07: IMPLEMENT OPEN-01 TASK-BASED UNLOCK
+
+> [!IMPORTANT]
+> **Xác nhận Quyết định Sản phẩm:** OPEN-01 was explicitly decided by the product owner and implemented accordingly.
+
+### Bản chất giai đoạn:
+- **Hiện thực hóa Quyết định Sản phẩm chính thức của Ký chủ cho OPEN-01 (Task-based Unlock).**
+- **Công thức Nghiệp vụ Số học Nguyên (Pure Integer Arithmetic):**
+  $$\text{requiredCompletedTasks} = \text{ceil}(2 \times N / 3) \equiv (2 \times N + 2) / 3$$
+  Tuyệt đối không dùng số thực (floating point), loại bỏ hoàn toàn sai số làm tròn.
+- **Bảng Kiểm chứng Chuẩn Hóa ($N = 0 \dots 10$):**
+  * $N = 0 \rightarrow$ 0 (Không mở khóa, bắt buộc $N > 0$) $\rightarrow$ `LOCK` (`NO_LINKED_TASKS`).
+  * $N = 1 \rightarrow 1$ (1/1 $\rightarrow$ `ALLOW`).
+  * $N = 2 \rightarrow 2$ (2/2 $\rightarrow$ `ALLOW`).
+  * $N = 3 \rightarrow 2$ (2/3 hoặc 3/3 $\rightarrow$ `ALLOW`).
+  * $N = 4 \rightarrow 3$ (3/4 hoặc 4/4 $\rightarrow$ `ALLOW`).
+  * $N = 5 \rightarrow 4$ (4/5 hoặc 5/5 $\rightarrow$ `ALLOW`).
+  * $N = 6 \rightarrow 4$ (4/6 $\rightarrow$ `ALLOW`).
+  * $N = 7 \rightarrow 5$ (5/7 $\rightarrow$ `ALLOW`).
+  * $N = 8 \rightarrow 6$ (6/8 $\rightarrow$ `ALLOW`).
+  * $N = 9 \rightarrow 6$ (6/9 $\rightarrow$ `ALLOW`).
+  * $N = 10 \rightarrow 7$ (7/10 $\rightarrow$ `ALLOW`).
+- **Điều Kiện Mở Khóa Sản Phẩm (Unlock Condition):**
+  * $\text{completedTasks} \ge \text{requiredCompletedTasks} \quad \text{VÀ} \quad N > 0 \implies \text{BusinessUnlockDecision.UNLOCKED} \rightarrow \text{EnforcementAction.ALLOW}$.
+  * Nếu không thỏa mãn $\implies \text{EnforcementAction.LOCK}$.
+- **Chu Kỳ Ngày Nghiệp Vụ (Business Cycle 04:00):**
+  * Bắt đầu lúc `04:00:00` hàng ngày (`BusinessDayProvider`).
+  * Chỉ tính các lượt hoàn thành nhiệm vụ trong chu kỳ hiện tại. Lượt hoàn thành ngày cũ không được tính sang ngày mới.
+  * Nhiệm vụ bị lưu trữ (`isArchived`) hoặc bị xóa: loại hoàn toàn khỏi $N$ và completion.
+  * Quan hệ M:N: Một task hoàn thành áp dụng cho mọi app liên kết; một app có nhiều task tính độc lập.
+- **Độ Ưu Tiên Tuyệt Đối Của Khóa Kỹ Thuật (Technical Precedence):**
+  * Technical App Lock (`PolicyEngine`: Schedule & Daily Limit) luôn có ưu tiên tối thượng.
+  * Nếu Technical Lock cấm (`LOCK`) $\implies \text{finalAction} = \text{LOCK}$ (`LOCKED_BY_POLICY`), không bao giờ bị bypass bởi Business Unlock.
+- **Kiến Trúc Triển Khai:**
+  * Tạo riêng component domain thuần túy: `TaskUnlockPolicy.kt` (`domain/policy/`) chịu trách nhiệm tính toán công thức và đánh giá trạng thái (`NO_LINKED_TASKS`, `INSUFFICIENT_COMPLETION`, `UNLOCKED`). Không để công thức rải rác.
+  * Nâng cấp `TaskAppEnforcementAdapter.kt` tích hợp `TaskUnlockPolicy`, đảm bảo `evaluate()` và `evaluateSync()` có cùng semantics 100%.
+  * Cập nhật Snapshot Cache đa luồng an toàn cho Accessibility Main Thread (< 0.05ms, O(1)), tự động quan sát cập nhật khi completion thay đổi.
+- **Quản Trị OPEN Items:**
+  * **OPEN-01:** **CHÍNH THỨC ĐÓNG (CLOSED).**
+  * **OPEN-02..07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+### Kiểm thử & Xác minh:
+- **Unit Test Suite Mới `TaskUnlockPolicyTest.kt`:**
+  * Kiểm chứng bảng chuẩn $N = 0 \dots 10$.
+  * Kiểm chứng toán học tương đương exhaustive $N = 0 \dots 35$.
+  * Kiểm chứng các ngưỡng completion: 0%, ngay dưới threshold, đúng threshold, 100%, overflow.
+- **Integration Test Suite Mở Rộng `TaskAppEnforcementIntegrationTest.kt`:**
+  * Kiểm chứng Case A ($N=3$), Case B ($N=4$), Case C ($N=5$).
+  * Kiểm chứng Case D & E (Technical priority vs Business unlock).
+  * Kiểm chứng Case F (Reset chu kỳ 04:00).
+  * Kiểm chứng quan hệ M:N, task archived/deleted, cache synchronization, app re-added to Vault.
+- **Kết quả Kiểm thử Tự động:** **319/319 tests PASS (100% Success Rate)**.
+- **Build APK:** `.\gradlew.bat assembleDebug` **BUILD SUCCESSFUL**.
+- **Kiểm chứng Thiết bị Thực Tế vivo iQOO Neo 10 (V2425A / Android 15 / API 35):**
+  * Cài đặt APK Debug thành công qua ADB (`Performing Streamed Install -> Success`).
+  * Khởi chạy `MainActivity`, giao diện hiển thị mượt mà với đầy đủ 3 tab: Nhiệm Vụ Đường, Bảo Khố, Quản Trị Thực Thi.
+
+---
+
 ## [Phase 21] - 2026-09-07: PRE-OPEN-01 AUDIT & GOVERNANCE FREEZE
 ### Bản chất giai đoạn:
 - **Thiết lập Baseline Sạch và Đóng Băng Quản Trị Hệ Thống (Governance Freeze) trước khi xem xét quyết định OPEN-01.**
