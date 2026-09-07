@@ -174,7 +174,8 @@ Nằm trong package `com.example.selfdisciplinepoc01.data.entity`:
 ---
 
 ## 16. Git Commit
-- Thông điệp commit: `feat: align daily cycle and add core data foundation`
+- **Thông điệp commit:** `feat: align daily cycle and add core data foundation`
+- **Commit hash:** `f2ee9daceaed8de683cf0532f83db39f9f8cca94`
 
 ---
 
