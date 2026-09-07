@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 26.2] - 2026-09-07: GOVERNANCE RECOVERY & BASELINE INTEGRITY
+
+> [!IMPORTANT]
+> **Khôi phục Quản trị & Xác minh Toàn vẹn Baseline:**
+> - **XÁC MINH TRỰC TIẾP TỪ REPOSITORY:** Kiểm tra đối chiếu trực tiếp `origin/main`, `CANONICAL_DESIGN_V2.md`, `OPEN_ITEMS.md`, `PRODUCT_BASELINE.md`, `DESIGN_DECISIONS.md`, `DESIGN_AUDIT.md`, `IMPLEMENTATION_STATUS.md`.
+> - **QUẢN TRỊ OPEN ITEMS:**
+>   * **OPEN-01:** **CLOSED** (Công thức `ceil(2N/3)`).
+>   * **OPEN-04:** **CLOSED** (Scoped Product Behavior / Hard Ceiling Guardrail).
+>   * **OPEN-02, OPEN-03, OPEN-05, OPEN-06, OPEN-07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+> - **LÀM RÕ SAI LỆCH TEST COUNT (328 vs 327):** Đã kiểm tra source code đối chiếu commit `3450303` (Phase 26) và `6fa4bd6` (Phase 26.1): diff rỗng (0 thay đổi code/test). Phân tích mã nguồn và XML test report xác nhận có chính xác 327 annotations `@Test` và 327 tests được thực thi thành công (0 failures). Con số 328 trong các báo cáo trước đó là do reporting error từ Gradle summary. Con số baseline chính thức được xác nhận là **327 tests**.
+> - **BẢO TỒN RUNTIME:** 0 dòng code runtime bị thay đổi. `assembleDebug` và `testDebugUnitTest` (327/327 tests) PASS.
+
 ## [Phase 26.1] - 2026-09-07: CANONICAL SYNCHRONIZATION & GOVERNANCE REPAIR
 
 > [!IMPORTANT]
