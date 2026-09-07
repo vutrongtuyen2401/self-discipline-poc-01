@@ -17,7 +17,7 @@
 
 | Phân hệ / Tính năng sản phẩm | Trạng thái chuẩn | Current Capability (Năng lực hiện có trong code) | Missing Product Behavior (Hành vi sản phẩm còn thiếu) | Blocking Dependency (Phụ thuộc gây nghẽn) | Recommended Next Phase |
 |:---|:---:|:---|:---|:---|:---|
-| **1. Hệ thống Phong Ấn (App Lock Core)** | **PARTIAL** | Bắt sự kiện chuyển app bằng Accessibility, che overlay 0ms bằng `BlockingShieldOverlay`, hiển thị màn hình khóa `LockScreenActivity`, quản lý session, chống stale callback. Phase 20 tích hợp hoàn chỉnh `TaskAppEnforcementAdapter`: Đánh giá 2 tầng (Technical Lock ưu tiên tuyệt đối -> Vault/Mission Domain), in-memory cache cực nhanh (< 0.05ms) cho Accessibility Main Thread, phân định 3 nhóm app (`NON_VAULT_APP`, `VAULT_APP_UNLINKED`, `VAULT_APP_WITH_TASKS`), bảo vệ hard boundary OPEN-01 (`PENDING_OPEN_01`). Đạt Checkpoint CP8 (Phase 20 Integrated Boundary). | Thiếu logic mở khóa theo tiến độ nhiệm vụ (bị chặn bởi OPEN-01); thiếu hiển thị danh sách nhiệm vụ liên kết trực tiếp trên `LockScreenActivity`. | Phụ thuộc **OPEN-01** (công thức mở khóa). | Chờ chốt OPEN-01 |
+| **1. Hệ thống Phong Ấn (App Lock Core)** | **DONE** | Bắt sự kiện chuyển app bằng Accessibility, che overlay 0ms bằng `BlockingShieldOverlay`, hiển thị màn hình khóa `LockScreenActivity`, quản lý session, chống stale callback. `TaskAppEnforcementAdapter` tích hợp hoàn chỉnh 2 tầng: Technical Lock (Schedule & Daily Limit) có ưu tiên cấm tuyệt đối -> Tầng Bảo Khố & Nhiệm Vụ Đường (OPEN-01). In-memory snapshot cache (< 0.05ms) cho Accessibility Main Thread. Quyết định sản phẩm OPEN-04 đã chính thức chốt tại Phase 26 (Scoped Product Behavior / Hard Ceiling Guardrail). | Không. Đã hoàn thiện trọn vẹn cả Technical Hard Ceiling lẫn Business Unlock. | Không. (OPEN-01 và OPEN-04 đều đã CLOSED). | Hoàn thành trong Phase 26 |
 | **2. Bảo Khố (Vault Core)** | **DONE** | Đã triển khai trọn vẹn nghiệp vụ Bảo Khố (CP4): Khám phá ứng dụng launcher trên máy, thêm app vào Bảo Khố, hiển thị danh sách dạng ô túi đồ (KHÔNG icon ổ khóa theo Mục 6 Canonical), gỡ app khỏi Bảo Khố (cascade xóa sạch liên kết trong `TaskAppCrossRef`, giữ nguyên task và lịch sử), re-add không tự phục hồi liên kết cũ. | Không. Đã tuân thủ 100% Canonical Design V2 (Mục 6). | Không. | Hoàn thành trong Phase 19 |
 | **3. Nhiệm Vụ Đường (Mission Hall Core)** | **PARTIAL** | Đã hoàn thành Core Task Domain (`Task`, `SequentialTaskChain`), Room persistence (`TaskDao`, `DailyTaskCompletionDao`), UseCases, UI Compose Nhiệm Vụ Đường, chuỗi tuần tự advance tự động, mốc reset 04:00 (CP3, CP7). Phase 19 bổ sung: Chọn và gắn liên kết các app từ Bảo Khố, hiển thị chip app liên kết, phản ứng tức thì khi app bị gỡ khỏi Bảo Khố. | Chưa có điểm thưởng tu vi (OPEN-02); chưa có âm thanh/hiệu ứng tiên hiệp. | Chờ chốt OPEN-02. | **Phase 20 (Cultivation & Progression)** |
 | **4. Quan hệ App ↔ Task (Many-to-Many)** | **DONE** | Đã hoàn thành nghiệp vụ và lưu trữ liên kết Task ↔ App N-N (CP6): Hỗ trợ trường hợp A (1 task 1 app), B (1 task nhiều app), C (nhiều task cùng 1 app); cập nhật đồng bộ qua `TaskAppCrossRefDao`, kiểm tra bảo vệ chỉ liên kết app đang có trong Bảo Khố, cascade gỡ liên kết sạch sẽ khi xóa app khỏi Bảo Khố. | Không. Đã tuân thủ 100% Canonical Design V2 (Mục 5, 6). | Không. | Hoàn thành trong Phase 19 |
@@ -38,19 +38,19 @@
 
 ---
 
-## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 25 — Baseline Freeze)
-- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **4 phân hệ** (Chu kỳ ngày 04:00 — CP5; Bảo Khố — CP4; Quan hệ App-Task Many-to-Many — CP6; Luồng Mở Khóa theo Nhiệm Vụ — CP9 / OPEN-01).
-- **PARTIAL (Có một phần nghiệp vụ):** **2 phân hệ** (Hệ thống Phong Ấn App Lock — đã tích hợp mở khóa theo nhiệm vụ; Nhiệm Vụ Đường — Core Task & Basic Mission Hall Flow CP3, CP7 tích hợp liên kết app Bảo Khố và Cultivation UI).
+## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 26 — Technical App Lock Decision)
+- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **5 phân hệ** (Hệ thống Phong Ấn App Lock Core — CP8 / OPEN-04; Chu kỳ ngày 04:00 — CP5; Bảo Khố — CP4; Quan hệ App-Task Many-to-Many — CP6; Luồng Mở Khóa theo Nhiệm Vụ — CP9 / OPEN-01).
+- **PARTIAL (Có một phần nghiệp vụ):** **1 phân hệ** (Nhiệm Vụ Đường — Core Task & Basic Mission Hall Flow CP3, CP7 tích hợp liên kết app Bảo Khố và Cultivation UI; còn thiếu điểm tu vi OPEN-02).
 - **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có quyết định sản phẩm cuối):** **2 phân hệ** (An toàn tầng OS; Cultivation UI Design System Foundation).
 - **NOT IMPLEMENTED (Hoàn toàn chưa xây dựng):** **6 phân hệ** (Tu Luyện, Bí Cảnh, Thương Thành, Túi Trữ Vật, Voucher, Khí Linh AI Core).
 - **CANONICAL OPEN ITEMS STATUS (Single Source of Truth):**
   * **OPEN-01:** **CLOSED** (Exact task unlock formula `ceil(2N/3)` — đã hoàn thành ở Phase 23, validate ở Phase 24).
   * **OPEN-02:** **OPEN** (Point / Reward final formula).
   * **OPEN-03:** **OPEN** (Tower detailed formula / Floor 4 exception).
-  * **OPEN-04:** **OPEN** (Technical App Lock product decision).
+  * **OPEN-04:** **CLOSED** (Technical App Lock product decision — đã chính thức đóng ở Phase 26: Scoped Product Behavior / Hard Ceiling Guardrail).
   * **OPEN-05:** **OPEN** (Official DB schema & migration strategy — Room DB hiện tại chỉ là Technical Foundation).
   * **OPEN-06:** **OPEN** (Memory / Cloud retention & sync policy).
   * **OPEN-07:** **OPEN** (UI state machine / animation / audio tokens).
 
-> **KẾT LUẬN QUẢN TRỊ (PHASE 25):**  
-> Tuyệt đối không tự biến các mục OPEN thành DONE chỉ dựa trên Technical Foundation hiện có. Product Baseline chính thức được đóng băng sau OPEN-01. Mọi mục từ OPEN-02 đến OPEN-07 tiếp tục duy trì trạng thái OPEN nghiêm ngặt cho đến khi Ký chủ có quyết định văn bản chính thức.
+> **KẾT LUẬN QUẢN TRỊ (PHASE 26):**  
+> OPEN-04 đã chính thức được chốt và ĐÓNG (CLOSED) với vai trò Scoped Product Behavior (Hàng rào Cấm Tuyệt Đối) và Core Enforcement Engine. 5 mục còn lại (OPEN-02, OPEN-03, OPEN-05, OPEN-06, OPEN-07) tiếp tục duy trì trạng thái OPEN nghiêm ngặt cho đến khi Ký chủ có quyết định văn bản chính thức.

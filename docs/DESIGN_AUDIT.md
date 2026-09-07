@@ -250,3 +250,15 @@ Bám sát các Checkpoints (CP) đã chốt trong Canonical Design Mục 27:
   2. Xác nhận 100% mã nguồn không bị ảnh hưởng, không có bất kỳ logic tự ý nào được thêm vào cho OPEN-02..07.
   3. Đóng băng Product Baseline hiện tại trong `docs/PRODUCT_BASELINE.md`.
 
+---
+
+## 17. TECHNICAL APP LOCK PRODUCT DECISION AUDIT (PHASE 26 — OPEN-04)
+
+- **Đối tượng kiểm toán:** Trạng thái sản phẩm và ranh giới kỹ thuật của Phân hệ App Lock sau POC (Mục 25 & Mục 28 Canonical Design V2).
+- **Kết quả kiểm toán:**
+  1. **Định vị:** Technical App Lock (Schedule & Daily Limit) chính thức được công nhận là **Scoped Product Behavior (Hàng rào Cấm Tuyệt Đối - Hard Ceiling Guardrails)** có độ ưu tiên cao nhất, bảo vệ người dùng khỏi việc lạm dụng điện thoại vào ban đêm hoặc vượt trần thời lượng.
+  2. **Giải pháp kỹ thuật Android 15:** Đóng lại câu hỏi POC-01: Kiến trúc Accessibility Service (`TYPE_WINDOW_STATE_CHANGED`) + Window Overlay (`TYPE_APPLICATION_OVERLAY`) là Core Enforcement Engine chính thức. Quyền hệ thống giới hạn ở `BIND_ACCESSIBILITY_SERVICE` và `SYSTEM_ALERT_WINDOW`, không mở rộng sang DeviceAdmin.
+  3. **Thứ tự ưu tiên thực thi:** Technical Lock cấm (`LOCK`) $\rightarrow$ khóa ngay lập tức (`LOCKED_BY_POLICY`), không cho phép bất kỳ tiến trình nhiệm vụ hay voucher nào bypass. Chỉ khi Technical Lock cho phép (`ALLOW`) $\rightarrow$ mới đánh giá Bảo Khố & Nhiệm Vụ Đường (OPEN-01).
+  4. **Trạng thái Quản trị:** **OPEN-04 CHÍNH THỨC ĐÓNG (CLOSED)**.
+
+

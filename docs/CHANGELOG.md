@@ -2,6 +2,22 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 26] - 2026-09-07: TECHNICAL APP LOCK PRODUCT DECISION (OPEN-04)
+
+> [!IMPORTANT]
+> **Xác nhận Quyết định Sản phẩm & Đóng OPEN-04:**
+> - **OPEN-04:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Technical App Lock (Schedule & Daily Limit) được công nhận là **Scoped Product Behavior (Hàng rào Cấm Tuyệt Đối - Hard Ceiling Guardrail)** với thẩm quyền thực thi tối thượng.
+> - **OPEN-01:** **CLOSED** (Exact task unlock formula `ceil(2N/3)`).
+> - **OPEN-02, OPEN-03, OPEN-05, OPEN-06, OPEN-07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.** Tuyệt đối không tự ý quyết định hay đóng các mục còn lại.
+
+### Bản chất giai đoạn:
+- **Xác lập Quyết định Sản phẩm cho OPEN-04 (Decision Record):**
+  * Định vị rõ rệt: Technical App Lock không phải là một hệ thống cạnh tranh với Bảo Khố, mà đóng vai trò là "Lưới An Toàn Cứng" (Hard Ceiling / Absolute Ban Policy), bảo vệ người dùng không bị cuốn vào điện thoại trong các khung giờ cấm hoặc khi vượt trần thời lượng mỗi ngày.
+  * Phê duyệt kiến trúc thực thi 2 tầng (`TaskAppEnforcementAdapter`): Technical Policy luôn có độ ưu tiên tối thượng cấm truy cập (`LOCKED_BY_POLICY`), không bị bypass bởi bất kỳ tiến trình nhiệm vụ hay voucher nào.
+  * Phê duyệt ranh giới API Android 15: Accessibility Service (`TYPE_WINDOW_STATE_CHANGED`) + Window Overlay (`TYPE_APPLICATION_OVERLAY`) chính thức trở thành Core Enforcement Engine, giới hạn nghiêm ngặt ở 2 quyền OS tiêu chuẩn mà không cần DeviceAdmin.
+- **Bảo tồn Tuyệt đối Mã Nguồn Runtime:**
+  * 0 dòng code runtime bị thay đổi. 328/328 unit & integration tests tiếp tục PASS 100%.
+
 ## [Phase 25] - 2026-09-07: GOVERNANCE CORRECTION + PRODUCT BASELINE FREEZE
 
 > [!IMPORTANT]

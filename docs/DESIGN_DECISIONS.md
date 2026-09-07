@@ -391,5 +391,52 @@ required = (2 * N + 2) / 3
 2. **Phân định rạch ròi:** Nền tảng kỹ thuật (Accessibility, Room DB proposal, Snapshot Cache, Cultivation UI Foundation) không tự động biến thành Quyết định Sản phẩm (Product Decision).
 3. **OPEN-02..07 bất biến:** Giữ nguyên trạng thái `OPEN` cho đến khi có quyết định bằng văn bản từ Ký chủ.
 
+---
+
+## 12. QUYẾT ĐỊNH SẢN PHẨM CHÍNH THỨC OPEN-04 (PHASE 26 — TECHNICAL APP LOCK PRODUCT DECISION)
+
+> [!IMPORTANT]
+> **Xác nhận Quyết định Sản phẩm OPEN-04:** OPEN-04 chính thức được đóng (CLOSED) với định vị là **Scoped Product Behavior (Hành vi Sản phẩm Có Phạm vi Giới hạn)** kết hợp **Core Enforcement Engine Foundation**.
+
+### 12.1. Decision Record: OPEN-04
+- **Vấn đề (Problem):**  
+  Mục 28 của `docs/CANONICAL_DESIGN_V2.md` định nghĩa: *"OPEN-04: Chi tiết kỹ thuật App Lock sau POC-01; cần xác định quyền/API/hành vi Android 15/iQOO thực tế."* Cần xác định rõ vai trò sản phẩm của Technical App Lock (Schedule, Daily Limit) so với Bảo Khố (Vault), giải pháp API/Quyền hệ thống chính thức trên Android 15, và thứ tự ưu tiên thực thi.
+- **Bằng chứng kiểm chứng (Evidence):**  
+  Qua 25 phase phát triển và kiểm chứng thực tế trên vivo iQOO Neo 10 (Android 15 / API 35 / OriginOS 5):
+  * Dịch vụ Trợ năng `AppDetectorAccessibilityService` bắt sự kiện foreground `TYPE_WINDOW_STATE_CHANGED` ổn định (< 16ms), tự động phục hồi an toàn (`onServiceConnected`).
+  * `BlockingShieldOverlay` (Window TYPE_APPLICATION_OVERLAY) che phủ màn hình tức thì (0ms), ngăn chặn hoàn toàn rò rỉ nội dung ứng dụng bị khóa.
+  * `LockScreenActivity` hiển thị toàn màn hình, điều hướng an toàn Home/Back.
+  * Cơ chế đồng hồ `Clock` kháng trôi thời gian, hỗ trợ múi giờ động và mốc ngày 04:00.
+  * Bộ giám sát thời gian thực `ScheduleWatcher` và `UsageLimitWatcher` kích hoạt khóa chính xác tại thời điểm chạm ngưỡng.
+  * Toàn bộ 328 unit & integration tests PASS 100%.
+- **Hành vi hiện tại (Current Behavior):**  
+  * `TaskAppEnforcementAdapter` thực hiện đánh giá 2 tầng: Technical Policy (Schedule & Daily Limit) luôn có độ ưu tiên tối thượng. Nếu Technical Lock cấm (`LOCK`), ứng dụng bị phong ấn ngay lập tức (`LOCKED_BY_POLICY`). Chỉ khi Technical Lock cho phép (`ALLOW`), hệ thống mới kiểm tra tiếp trạng thái Bảo Khố và tiến độ nhiệm vụ (OPEN-01).
+- **Quyết định Sản phẩm (Product Decision):**  
+  1. **Định vị sản phẩm:** Technical App Lock (Lịch trình Schedule & Giới hạn sử dụng Daily Limit) chính thức trở thành **Hành vi Sản phẩm Có Phạm vi Giới hạn (Scoped Product Behavior)**, đóng vai trò là **"Hàng Rào Bảo Vệ Cứng / Chính Sách Cấm Tuyệt Đối" (Hard Ceiling Guardrails / Absolute Ban Policy)** của Hệ Thống Tự Kỷ Luật Bản Thân.
+  2. **Thứ tự ưu tiên bất biến:**
+     $$\text{Technical Policy (Schedule / Limit)} \xrightarrow[\text{Cấm}]{\text{Ưu tiên 1}} \text{LOCK} \quad \text{vs} \quad \text{Vault + Task (OPEN-01)} \xrightarrow[\text{Mở}]{\text{Ưu tiên 2}} \text{ALLOW}$$
+     Khi vi phạm khung giờ cấm hoặc vượt quá thời lượng tối đa trong ngày, ứng dụng bị khóa cưỡng chế mà không một tiến trình nhiệm vụ hay voucher nào có thể bypass.
+  3. **Quyết định Kỹ thuật & Quyền hệ thống Android 15:**
+     - Phê duyệt chính thức kiến trúc **Accessibility Service (`TYPE_WINDOW_STATE_CHANGED`) + Window Overlay (`TYPE_APPLICATION_OVERLAY`)** là giải pháp cốt lõi của Hệ Thống Phong Ấn.
+     - Ranh giới quyền: Giới hạn nghiêm ngặt ở 2 quyền tiêu chuẩn: `BIND_ACCESSIBILITY_SERVICE` và `SYSTEM_ALERT_WINDOW`. Không mở rộng sang DeviceAdmin, Device Policy Manager hay MDM cho phạm vi sản phẩm hiện tại.
+  4. **Trạng thái Quản trị:** **OPEN-04 CHÍNH THỨC ĐÓNG (CLOSED)**.
+- **Những điều KHÔNG quyết định (Explicit Non-Decisions):**  
+  * Không hợp nhất UI cấu hình Schedule/Limit vào Bảo Khố (tạm thời giữ riêng tại tab Quản Trị Thực Thi).
+  * Không thay đổi schema Room DB của Core Task/Vault (OPEN-05 tiếp tục OPEN).
+  * Không thay đổi triết lý điểm tu vi hay mở khóa Tiên Hiệp (OPEN-02, OPEN-03 tiếp tục OPEN).
+- **Phạm vi áp dụng (Scope):**  
+  * Mọi ứng dụng được cấu hình trong `TargetRepository` (DataStore) hoặc Bảo Khố (`CoreDataRepository`).
+- **Ngoài phạm vi (Out of Scope):**  
+  * Không can thiệp vào các ứng dụng hệ thống quan trọng (Launcher, Settings, Phone, SMS, System UI).
+- **Hệ quả (Consequences):**  
+  * Kiến trúc thực thi 2 tầng (`TaskAppEnforcementAdapter`) được chính thức hóa thành chuẩn thiết kế.
+  * Xóa bỏ hoàn toàn tính chất "tạm thời/thử nghiệm" của hạ tầng App Lock Core, nâng cấp thành Core Enforcement Engine.
+- **Rủi ro & Giảm thiểu (Risks & Mitigations):**  
+  * *Rủi ro:* Người dùng hiểu lầm giữa app bị khóa do Technical Schedule vs app bị khóa do thiếu Task.  
+  * *Giảm thiểu:* Đã tích hợp badge minh bạch trên UI (`LOCKED_BY_POLICY` hiển thị badge Chu Sa "Khóa kỹ thuật" thay vì badge "Cần X/Y task").
+- **Tác động lên Canonical Design:**  
+  * Xác nhận mục tiêu POC-01 (Mục 25) và yêu cầu OPEN-04 (Mục 28) đã hoàn tất thành công.
+
+
 
 

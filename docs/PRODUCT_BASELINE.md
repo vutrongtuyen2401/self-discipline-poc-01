@@ -77,6 +77,11 @@ Tất cả các hành vi dưới đây là **Quyết định Sản phẩm chính
    - Khi xóa app khỏi Bảo Khố: toàn bộ liên kết trong `TaskAppCrossRef` bị xóa sạch (task và lịch sử completion được giữ nguyên).
    - Khi thêm lại app vào Bảo Khố: không tự động phục hồi các liên kết cũ, app trở về trạng thái $N=0 \rightarrow$ `LOCK`.
 
+7. **Technical App Lock — Scoped Product Behavior (OPEN-04 — CLOSED):**
+   - Lịch trình Schedule & Giới hạn sử dụng Daily Limit chính thức trở thành Hành vi Sản phẩm Có Phạm vi Giới hạn (Scoped Product Behavior), đóng vai trò **"Hàng Rào Bảo Vệ Cứng / Chính Sách Cấm Tuyệt Đối" (Hard Ceiling Guardrails / Absolute Ban Policy)**.
+   - Thẩm quyền tối thượng: Khi vi phạm khung giờ cấm hoặc vượt trần thời lượng dùng trong ngày $\implies \text{LOCK}$ (`LOCKED_BY_POLICY`), không một tiến trình nhiệm vụ hay voucher nào có thể bypass.
+   - Khẳng định giải pháp kỹ thuật: Accessibility Service (`TYPE_WINDOW_STATE_CHANGED`) + Window Overlay (`TYPE_APPLICATION_OVERLAY`) chính thức là Core Enforcement Engine của hệ thống trên Android 15 / OriginOS 5.
+
 ---
 
 ## 4. CÁC ĐIỂM CHƯA ĐƯỢC QUYẾT ĐỊNH (UNDECIDED / OPEN ITEMS)
@@ -87,7 +92,6 @@ Các hạng mục dưới đây bắt buộc phải duy trì trạng thái **`OP
 | :---: | :--- | :---: | :--- |
 | **OPEN-02** | Công thức điểm Tu Luyện & Phần thưởng cuối cùng (Point / Reward final formula) | **OPEN** | Không tự tạo hệ thống điểm tu vi, combo ngày hay trừ điểm. |
 | **OPEN-03** | Công thức chi tiết Tháp Thí Luyện & Ngoại lệ Tầng 4 (Tower detailed formula / Floor 4 exception) | **OPEN** | Không tự viết thuật toán sinh tầng hay logic độ khó tầng 4. |
-| **OPEN-04** | Quyết định sản phẩm kỹ thuật App Lock sau POC (Technical App Lock product decision) | **OPEN** | Không tự ý mở rộng quyền phụ trợ (UsageStats, DeviceAdmin) thành yêu cầu sản phẩm. |
 | **OPEN-05** | Lược đồ DB chính thức & Chiến lược Di chuyển (Official DB schema & migration strategy) | **OPEN** | Room DB hiện tại chỉ là Nền tảng Kỹ thuật (Technical Foundation) phục vụ POC, chưa phải schema chính thức đã chốt. |
 | **OPEN-06** | Chính sách Lưu trữ & Đồng bộ Cloud (Memory / Cloud retention & sync policy) | **OPEN** | Giữ 100% On-device, không tự ý viết Cloud sync hay gửi dữ liệu ra ngoài. |
 | **OPEN-07** | State Machine Giao diện / Animation / Audio Tokens (UI state machine / animation / audio tokens) | **OPEN** | Không tự ý nhúng voice assets giả lập hoặc tự định nghĩa animation state machine ngoài Foundation hiện có. |
@@ -106,8 +110,9 @@ Tuân thủ nghiêm ngặt **RULE 10** trong `docs/DESIGN_DECISIONS.md`:
 │ • Nhiệm Vụ Đường: Quản lý task, chuỗi tuần tự, hoàn thành task.        │
 │ • Bảo Khố: Thêm/gỡ app phong ấn (giao diện không icon ổ khóa).         │
 │ • Liên kết Task ↔ App: Quan hệ Many-to-Many.                           │
-│ • Giải phong ấn theo Task: Công thức ceil(2N/3) với N > 0.             │
+│ • Giải phong ấn theo Task: Công thức ceil(2N/3) với N > 0 (OPEN-01).   │
 │ • Chu kỳ ngày 04:00: Reset lượt hoàn thành mỗi ngày.                   │
+│ • Technical App Lock: Hard Ceiling Guardrail (OPEN-04).                │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ được hỗ trợ bởi
                                    ▼
@@ -126,4 +131,5 @@ Tuân thủ nghiêm ngặt **RULE 10** trong `docs/DESIGN_DECISIONS.md`:
 ```
 
 > [!CAUTION]
-> **Nguyên tắc cốt tử:** Nền tảng Kỹ thuật (Technical Foundation) được xây dựng để phục vụ việc kiểm chứng và chạy thử nghiệm, **tuyệt đối không được tự động coi là Quyết định Sản phẩm (Product Decision)** hoặc tự biến các mục OPEN tương ứng thành `DONE`.
+> **Nguyên tắc cốt tử:** Nền tảng Kỹ thuật (Technical Foundation) được xây dựng để phục vụ việc kiểm chứng và chạy thử nghiệm, **tuyệt đối không được tự động coi là Quyết định Sản phẩm (Product Decision)** hoặc tự biến các mục OPEN tương ứng thành `DONE` khi Ký chủ chưa đưa ra quyết định chính thức.
+
