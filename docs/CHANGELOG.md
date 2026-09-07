@@ -4,6 +4,57 @@ Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc
 
 ---
 
+## [Phase 19.5] - 2026-09-07: CULTIVATION UI DESIGN SYSTEM FOUNDATION
+### Bản chất giai đoạn:
+- **Thiết lập nền tảng UI Design System hoàn chỉnh theo phong cách: Xianxia / Cultivation + RPG + Self Discipline.**
+- **Nghiên cứu kiến trúc thị giác từ các GitHub reference (`IdleFantasy`, `ASCENDANT/ClaudeFitness`, `NeoMud`, `eOr`) theo nguyên tắc REFERENCE ONLY, KHÔNG COPY CODE / ASSETS (tuân thủ nghiêm ngặt giấy phép GPL-3.0).**
+- **Xây dựng hệ thống Semantic Tokens: Theme, Colors (Huyền Mặc, Thanh Ngọc, Kim Tinh, Chu Sa, Tử Tiêu), Typography, Shapes, Spacing, Elevation.**
+- **Xây dựng bộ Reusable Core Components: `CultivationCard`, `CultivationButton`, `CultivationDialog`, `AsyncAppIcon` (tải icon thật bất đồng bộ có memory cache LRU), `AppItemGridCard`, `AppItemSelectableRow`, `TaskCard`, `ProgressCard`, `CultivationGrid`, `ItemCard`.**
+- **Nâng cấp đồng bộ giao diện thực tế của Bảo Khố (`VaultScreen.kt`), Nhiệm Vụ Đường (`MissionHallScreen.kt`), và `MainActivity.kt`.**
+- **TUYỆT ĐỐI KHÔNG DÙNG ICON Ổ KHÓA trên ứng dụng Bảo Khố (tuân thủ nghiêm ngặt Mục 6 Canonical Design V2).**
+- **Tách bạch hoàn toàn Presentation Animation với Business State (animation không quyết định completion, unlock hay persistence).**
+- **Bảo toàn 100% Frozen Core App Lock và 286 bài test hồi quy cũ; bổ sung 8 unit tests mới -> 294/294 PASS (100%).**
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+### Các nội dung đã thực hiện:
+- **Design System Foundation (`ui/design/theme/`):**
+  - Tạo `CultivationColors.kt`: Semantic color tokens cho cả Dark Theme (Huyền Mặc `#090D16`, Thanh Ngọc `#14B8A6`, Hoàng Kim `#F59E0B`, Chu Sa `#F43F5E`, Tử Tiêu `#6366F1`) và Light Theme (Bạch Vân `#F4F6FB`).
+  - Tạo `CultivationTypography.kt`: Semantic typography tokens (`headingHero`, `titleCard`, `subtitle`, `bodyText`, `labelRune`, `caption`, `button`, `statNumber`).
+  - Tạo `CultivationShapes.kt`: Semantic shapes (`card`, `cardElevated`, `itemCell`, `button`, `chip`, `dialog`, `avatar`, `circular`).
+  - Tạo `CultivationSpacing.kt`: Spacing tokens, quy định chuẩn kích thước cảm ứng tối thiểu `touchTargetMin = 48.dp` theo Accessibility guidelines.
+  - Tạo `CultivationElevation.kt`: Elevation tokens (`none`, `subtle`, `card`, `cardElevated`, `dialog`).
+  - Tạo `CultivationTheme.kt`: `CompositionLocalProvider` tích hợp mượt mà tương thích với Material 3 `ColorScheme`.
+- **Animation Primitives (`ui/design/animation/`):**
+  - Tạo `CultivationAnimation.kt`: `rememberBreathingAlpha` (nhịp thở linh lực 2000ms), `pressScaleEffect` (nảy nhẹ khi nhấn 0.96f), `animateProgress` (thanh tiến trình chuyển động mượt). Tách biệt hoàn toàn khỏi business state.
+- **Core Components (`ui/design/components/`):**
+  - Tạo `AsyncAppIcon.kt`: Tải biểu tượng ứng dụng Android thật bất đồng bộ qua `Dispatchers.IO` kết hợp `AppIconMemoryCache` (`LruCache<String, ImageBitmap>`), fallback avatar ngọc phù khi cần. Đảm bảo không block main thread.
+  - Tạo `CultivationCard.kt`: Thẻ ngọc giản nhiều tầng (`STANDARD`, `ELEVATED`, `ACTIVE_GLOW` có viền thở linh lực, `OUTLINED`).
+  - Tạo `CultivationButton.kt`: Nút bấm tu tiên với variants `PRIMARY`, `SECONDARY`, `GHOST`, `DANGER`, hỗ trợ trạng thái loading và scale nảy nhẹ.
+  - Tạo `CultivationDialog.kt`: Bảng thông cáo ngọc giản viền phát quang linh lực tím nhạt Tử Tiêu.
+  - Tạo `ProgressCard.kt`: Thẻ tiến trình tu luyện hôm nay với thanh năng lượng gradient mượt mà và nhãn huy hiệu.
+  - Tạo `CultivationGrid.kt`: Lưới tự co giãn thích ứng theo kích thước thiết bị (`GridCells.Adaptive(140.dp)`).
+  - Tạo `AppItemCard.kt`: `AppItemGridCard` (ô app Bảo Khố dạng túi trữ vật, có app icon thật, badge liên kết, nút gỡ Chu Sa, KHÔNG icon ổ khóa) và `AppItemSelectableRow` (cho dialog chọn app liên kết).
+  - Tạo `TaskCard.kt`: Thẻ nhiệm vụ tự kỷ luật theo chuỗi, phân cấp rõ rệt nhiệm vụ active (`isCurrentActive` có nhãn "NHIỆM VỤ ĐANG THỰC HIỆN" và viền Kim Tinh), hiển thị chip icon app liên kết thật.
+  - Tạo `ItemCard.kt`: Thẻ kho tàng vật phẩm tiên hiệp.
+- **Tích Hợp Giao Diện Thực Tế:**
+  - Nâng cấp `VaultScreen.kt`: Chuyển đổi toàn diện sang `CultivationTheme`, `CultivationGrid` với `AppItemGridCard`, `CultivationCard` thống kê quy mô Bảo Khố, `AddDiscoveredAppDialog` và dialog gỡ app qua `CultivationDialog`.
+  - Nâng cấp `MissionHallScreen.kt`: Tích hợp `ProgressCard`, `TaskCard` cho nhiệm vụ đang làm và các nhiệm vụ tiếp theo, `TaskLinkageDialog` qua `CultivationDialog` và `AppItemSelectableRow`.
+  - Nâng cấp `MainActivity.kt`: Bao bọc `CultivationTheme(darkTheme = true)`, tinh chỉnh màu sắc thanh điều hướng 3 tab (`NavigationBar`) phong cách Tiên Hiệp.
+- **Kiểm Thử & Xác Minh:**
+  - Tạo `CultivationDesignSystemTest.kt`: 8 unit test cases kiểm tra tính toàn vẹn của colors, typography, shapes, spacing, accessibility touch target, button và card variants.
+  - Toàn bộ suite unit tests: **294/294 PASS (100% Success Rate)**.
+  - Kiểm thử và chụp ảnh màn hình trực tiếp trên vivo iQOO Neo 10 (Android 15):
+    + `screen_p19_5_missionhall.png`: Nhiệm Vụ Đường với ProgressCard, TaskCard active phát sáng và chip app liên kết icon thật.
+    + `screen_p19_5_link_dialog.png`: Hộp thoại liên kết ứng dụng ngọc giản với checkbox vàng và real app icon.
+    + `screen_p19_5_vault.png`: Bảo Khố dạng CultivationGrid với app icon thật, badge liên kết, nút gỡ Chu Sa, không icon ổ khóa.
+    + `screen_p19_5_vault_dialog.png`: Dialog thu nạp app với danh sách real icon mượt mà không jank.
+    + `screen_p19_5_admin_tab.png`: Tab Quản Trị Thực Thi bảo toàn 100% tính năng App Lock cũ, không hồi quy.
+- **Tài Liệu:**
+  - Tạo `docs/UI_DESIGN_SYSTEM.md`.
+  - Cập nhật `docs/IMPLEMENTATION_STATUS.md`, `docs/DESIGN_AUDIT.md`, `docs/CHANGELOG.md`.
+
+---
+
 ## [Phase 19] - 2026-09-07: VAULT INTEGRATION & TASK ↔ APP LINKAGE
 ### Bản chất giai đoạn:
 - **Hiện thực hóa Checkpoint CP4 (Bảo Khố — Vault Domain) theo Canonical Design V2 (Mục 6).**

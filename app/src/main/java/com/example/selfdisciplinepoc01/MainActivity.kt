@@ -81,10 +81,10 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme.colors.background
                 ) {
                     MainAppScreen()
                 }
@@ -154,28 +154,55 @@ fun MainAppScreen() {
             .create(VaultViewModel::class.java)
     }
 
+    val cultivationColors = com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme.colors
+
     Scaffold(
+        containerColor = cultivationColors.background,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = cultivationColors.surface,
+                contentColor = cultivationColors.textPrimary
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = {
                         selectedTab = 0
                         missionHallViewModel.refresh()
                     },
-                    label = { Text("Nhiệm Vụ Đường") },
+                    colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        selectedIconColor = cultivationColors.celestialGold,
+                        selectedTextColor = cultivationColors.celestialGold,
+                        unselectedIconColor = cultivationColors.textMuted,
+                        unselectedTextColor = cultivationColors.textMuted,
+                        indicatorColor = cultivationColors.celestialGoldMuted
+                    ),
+                    label = { Text("Nhiệm Vụ Đường", fontWeight = FontWeight.SemiBold) },
                     icon = { Text("📜", fontSize = 18.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    label = { Text("Bảo Khố") },
+                    colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        selectedIconColor = cultivationColors.spiritTeal,
+                        selectedTextColor = cultivationColors.spiritTeal,
+                        unselectedIconColor = cultivationColors.textMuted,
+                        unselectedTextColor = cultivationColors.textMuted,
+                        indicatorColor = cultivationColors.spiritTealMuted
+                    ),
+                    label = { Text("Bảo Khố", fontWeight = FontWeight.SemiBold) },
                     icon = { Text("🏛️", fontSize = 18.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    label = { Text("Quản Trị Thực Thi") },
+                    colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        selectedIconColor = cultivationColors.celestialGold,
+                        selectedTextColor = cultivationColors.celestialGold,
+                        unselectedIconColor = cultivationColors.textMuted,
+                        unselectedTextColor = cultivationColors.textMuted,
+                        indicatorColor = cultivationColors.celestialGoldMuted
+                    ),
+                    label = { Text("Quản Trị Thực Thi", fontWeight = FontWeight.SemiBold) },
                     icon = { Text("🛡️", fontSize = 18.sp) }
                 )
             }

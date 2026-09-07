@@ -1,7 +1,6 @@
 package com.example.selfdisciplinepoc01.ui.vault
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,40 +14,42 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.selfdisciplinepoc01.domain.model.DiscoveredApp
 import com.example.selfdisciplinepoc01.domain.model.VaultApp
+import com.example.selfdisciplinepoc01.ui.design.components.AppItemGridCard
+import com.example.selfdisciplinepoc01.ui.design.components.AsyncAppIcon
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationButton
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationButtonVariant
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationCard
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationCardVariant
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationDialog
+import com.example.selfdisciplinepoc01.ui.design.components.CultivationGrid
+import com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme
 
 @Composable
 fun VaultScreen(
@@ -67,16 +68,18 @@ fun VaultScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = CultivationTheme.colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
+            // Nút Thêm ứng dụng góc dưới phải phong cách Tiên Hiệp
             FloatingActionButton(
                 onClick = { viewModel.onOpenAddDialog() },
                 modifier = Modifier
                     .padding(end = 12.dp, bottom = 12.dp)
-                    .size(48.dp),
+                    .size(CultivationTheme.spacing.touchTargetMin),
                 shape = CircleShape,
-                containerColor = Color(0xFF00796B),
-                contentColor = Color.White
+                containerColor = CultivationTheme.colors.spiritTeal,
+                contentColor = CultivationTheme.colors.textOnPrimary
             ) {
                 Text(
                     text = "+",
@@ -93,97 +96,96 @@ fun VaultScreen(
         ) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
+                    color = CultivationTheme.colors.celestialGold
                 )
             } else {
-                LazyColumn(
+                CultivationGrid(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    minCellSize = 140.dp,
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+                    gap = CultivationTheme.spacing.gridGap
                 ) {
-                    // Tiêu đề phân hệ tiên hiệp: Bảo Khố
-                    item {
+                    // Header Bảo Khố (Chiếm toàn bộ chiều ngang grid)
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column {
                             Text(
                                 text = "Bảo Khố",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF004D40)
+                                style = CultivationTheme.typography.headingHero,
+                                color = CultivationTheme.colors.celestialGold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Nơi thu nạp và phong ấn các ứng dụng xao nhãng của Ký chủ",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = CultivationTheme.typography.subtitle,
+                                color = CultivationTheme.colors.textSecondary
                             )
                         }
                     }
 
-                    // Card Thống kê Bảo Khố
-                    item {
+                    // Card Thống kê quy mô Bảo Khố (Full span)
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         VaultSummaryCard(
                             totalApps = uiState.vaultApps.size,
                             sealedApps = uiState.vaultApps.count { it.linkedTasksCount > 0 }
                         )
                     }
 
-                    // Danh sách ứng dụng trong Bảo Khố
+                    // Trạng thái Bảo Khố trống hoặc Danh sách ứng dụng
                     if (uiState.vaultApps.isEmpty()) {
-                        item {
-                            Card(
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            CultivationCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFFE0F2F1)
-                                )
+                                variant = CultivationCardVariant.STANDARD,
+                                contentPadding = 24.dp
                             ) {
                                 Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(24.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
                                         text = "Bảo Khố hiện đang trống rỗng",
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF004D40),
-                                        fontSize = 15.sp
+                                        style = CultivationTheme.typography.titleCard,
+                                        color = CultivationTheme.colors.celestialGold
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = "Ký chủ hãy bấm nút '+' ở góc dưới bên phải để thu nạp ứng dụng muốn đưa vào chuỗi tự kỷ luật.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF00695C)
+                                        style = CultivationTheme.typography.bodyText,
+                                        color = CultivationTheme.colors.textSecondary,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
                         }
                     } else {
-                        item {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             Text(
                                 text = "Danh sách ứng dụng trong Bảo Khố (${uiState.vaultApps.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = CultivationTheme.typography.titleCard,
+                                color = CultivationTheme.colors.textPrimary
                             )
                         }
 
+                        // Danh sách các ứng dụng trong grid túi đồ
                         items(
                             items = uiState.vaultApps,
                             key = { it.packageName }
                         ) { app ->
-                            VaultAppItemCard(
-                                app = app,
-                                onRemove = { viewModel.onPromptRemoveApp(app) }
+                            AppItemGridCard(
+                                packageName = app.packageName,
+                                appName = app.appName,
+                                linkedTasksCount = app.linkedTasksCount,
+                                onRemoveClick = { viewModel.onPromptRemoveApp(app) }
                             )
                         }
                     }
                 }
             }
 
-            // Dialog Thêm ứng dụng đã cài đặt
+            // Dialog Thu nạp ứng dụng đã cài đặt
             if (uiState.isAddingApp) {
                 AddDiscoveredAppDialog(
                     discoveredApps = uiState.filteredDiscoveredApps,
@@ -197,35 +199,31 @@ fun VaultScreen(
 
             // Dialog Xác nhận xóa ứng dụng khỏi Bảo Khố
             uiState.appPendingRemoval?.let { app ->
-                AlertDialog(
+                CultivationDialog(
                     onDismissRequest = { viewModel.onDismissRemoveDialog() },
-                    title = {
-                        Text(
-                            text = "Gỡ khỏi Bảo Khố?",
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = "Ký chủ có chắc muốn gỡ ứng dụng [${app.appName}] khỏi Bảo Khố?\n\n" +
-                                    "Thao tác này sẽ tự động hủy toàn bộ liên kết của ứng dụng này với các nhiệm vụ trong Nhiệm Vụ Đường. Bản thân các nhiệm vụ và lịch sử hoàn thành vẫn được giữ nguyên vẹn.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
+                    title = "Gỡ khỏi Bảo Khố?",
                     confirmButton = {
-                        Button(
+                        CultivationButton(
+                            text = "Xác nhận gỡ",
                             onClick = { viewModel.onConfirmRemoveApp() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
-                        ) {
-                            Text("Xác nhận gỡ")
-                        }
+                            variant = CultivationButtonVariant.DANGER
+                        )
                     },
                     dismissButton = {
-                        TextButton(onClick = { viewModel.onDismissRemoveDialog() }) {
-                            Text("Hủy")
-                        }
+                        CultivationButton(
+                            text = "Hủy",
+                            onClick = { viewModel.onDismissRemoveDialog() },
+                            variant = CultivationButtonVariant.GHOST
+                        )
                     }
-                )
+                ) {
+                    Text(
+                        text = "Ký chủ có chắc muốn gỡ ứng dụng [${app.appName}] khỏi Bảo Khố?\n\n" +
+                                "Thao tác này sẽ tự động hủy toàn bộ liên kết của ứng dụng này với các nhiệm vụ trong Nhiệm Vụ Đường. Bản thân các nhiệm vụ và lịch sử hoàn thành vẫn được giữ nguyên vẹn.",
+                        style = CultivationTheme.typography.bodyText,
+                        color = CultivationTheme.colors.textSecondary
+                    )
+                }
             }
         }
     }
@@ -236,39 +234,33 @@ fun VaultSummaryCard(
     totalApps: Int,
     sealedApps: Int
 ) {
-    Card(
+    CultivationCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFE0F2F1)
-        )
+        variant = CultivationCardVariant.STANDARD,
+        contentPadding = 16.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(Color(0xFF26A69A), CircleShape),
+                    .background(CultivationTheme.colors.spiritTealMuted, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "$totalApps",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    color = CultivationTheme.colors.spiritTeal,
+                    style = CultivationTheme.typography.statNumber.copy(fontSize = 18.sp)
                 )
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
                 Text(
                     text = "Quy Mô Bảo Khố",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF004D40)
+                    style = CultivationTheme.typography.titleCard,
+                    color = CultivationTheme.colors.textPrimary
                 )
                 Text(
                     text = if (totalApps == 0) {
@@ -276,8 +268,8 @@ fun VaultSummaryCard(
                     } else {
                         "Đã thu nạp $totalApps ứng dụng ($sealedApps ứng dụng có liên kết nhiệm vụ)"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF00695C)
+                    style = CultivationTheme.typography.bodyText,
+                    color = CultivationTheme.colors.textSecondary
                 )
             }
         }
@@ -285,96 +277,20 @@ fun VaultSummaryCard(
 }
 
 /**
- * Hiển thị avatar và thông tin ứng dụng theo phong cách ô kho/túi đồ tiên hiệp.
+ * Hiển thị thẻ ứng dụng trong Bảo Khố dạng dòng đơn giản (dùng khi fallback).
  * Canonical Design V2 (Mục 6): TUYỆT ĐỐI KHÔNG HIỂN THỊ ICON Ổ KHÓA!
- * Trạng thái phong ấn biểu diễn bằng màu sắc.
  */
 @Composable
 fun VaultAppItemCard(
     app: VaultApp,
     onRemove: () -> Unit
 ) {
-    val isLinked = app.linkedTasksCount > 0
-    val containerColor = if (isLinked) Color(0xFFE8F5E9) else Color(0xFFFFFFFF)
-    val avatarBgColor = if (isLinked) Color(0xFF2E7D32) else Color(0xFF00897B)
-    val firstChar = app.appName.firstOrNull()?.uppercase() ?: "A"
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Avatar ô kho đồ
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(avatarBgColor, RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = firstChar,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = app.appName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = app.packageName,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Badge trạng thái liên kết (màu sắc, không icon ổ khóa)
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isLinked) Color(0xFFC8E6C9) else Color(0xFFEEEEEE)
-                ) {
-                    Text(
-                        text = if (isLinked) "Đang liên kết: ${app.linkedTasksCount} nhiệm vụ" else "Chưa liên kết nhiệm vụ",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isLinked) Color(0xFF1B5E20) else Color(0xFF616161),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            TextButton(
-                onClick = onRemove,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(text = "Gỡ", color = Color(0xFFD32F2F), fontSize = 13.sp)
-            }
-        }
-    }
+    AppItemGridCard(
+        packageName = app.packageName,
+        appName = app.appName,
+        linkedTasksCount = app.linkedTasksCount,
+        onRemoveClick = onRemove
+    )
 }
 
 @Composable
@@ -386,101 +302,123 @@ fun AddDiscoveredAppDialog(
     onAddApp: (DiscoveredApp) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    CultivationDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Thu Nạp Ứng Dụng Vào Bảo Khố",
-                fontWeight = FontWeight.Bold
+        title = "Thu Nạp Ứng Dụng Vào Bảo Khố",
+        confirmButton = {
+            CultivationButton(
+                text = "Đóng",
+                onClick = onDismiss,
+                variant = CultivationButtonVariant.GHOST
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchChange,
-                    placeholder = { Text("Tìm theo tên hoặc package...", fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp)
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(400.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                placeholder = {
+                    Text(
+                        "Tìm theo tên hoặc package...",
+                        style = CultivationTheme.typography.caption,
+                        color = CultivationTheme.colors.textMuted
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = CultivationTheme.shapes.button,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = CultivationTheme.colors.celestialGold,
+                    unfocusedBorderColor = CultivationTheme.colors.borderSubtle,
+                    focusedTextColor = CultivationTheme.colors.textPrimary,
+                    unfocusedTextColor = CultivationTheme.colors.textPrimary,
+                    cursorColor = CultivationTheme.colors.celestialGold
                 )
+            )
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else if (discoveredApps.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Không tìm thấy ứng dụng phù hợp",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(discoveredApps, key = { it.packageName }) { app ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = app.appName,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = app.packageName,
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = CultivationTheme.colors.celestialGold)
+                }
+            } else if (discoveredApps.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "Không tìm thấy ứng dụng phù hợp",
+                        style = CultivationTheme.typography.bodyText,
+                        color = CultivationTheme.colors.textMuted
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(discoveredApps, key = { it.packageName }) { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Icon thật của app Android
+                            AsyncAppIcon(
+                                packageName = app.packageName,
+                                fallbackAppName = app.appName,
+                                size = 38.dp
+                            )
 
-                                if (app.isAlreadyInVault) {
-                                    Text(
-                                        text = "Đã có",
-                                        color = Color(0xFF2E7D32),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                } else {
-                                    OutlinedButton(
-                                        onClick = { onAddApp(app) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Text(text = "+ Thêm", fontSize = 11.sp)
-                                    }
-                                }
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = app.appName,
+                                    style = CultivationTheme.typography.titleCard.copy(fontSize = 14.sp),
+                                    color = CultivationTheme.colors.textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = app.packageName,
+                                    style = CultivationTheme.typography.caption,
+                                    color = CultivationTheme.colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            if (app.isAlreadyInVault) {
+                                Text(
+                                    text = "Đã có",
+                                    color = CultivationTheme.colors.spiritTeal,
+                                    style = CultivationTheme.typography.caption.copy(fontWeight = FontWeight.Bold)
+                                )
+                            } else {
+                                CultivationButton(
+                                    text = "+ Thêm",
+                                    onClick = { onAddApp(app) },
+                                    variant = CultivationButtonVariant.SECONDARY,
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(34.dp)
+                                )
+                            }
                         }
+                        HorizontalDivider(
+                            color = CultivationTheme.colors.borderSubtle.copy(alpha = 0.5f),
+                            thickness = 0.5.dp
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("Đóng")
-            }
         }
-    )
+    }
 }
+
