@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 25] - 2026-09-07: GOVERNANCE CORRECTION + PRODUCT BASELINE FREEZE
+
+> [!IMPORTANT]
+> **Khôi phục Canonical Source of Truth & Đóng băng Baseline:**
+> - Khôi phục chính xác 100% mapping chuẩn của các mục OPEN-01..07 theo Mục 28 của `docs/CANONICAL_DESIGN_V2.md`.
+> - Xác nhận sai lệch trong `PHASE_24_REPORT.md` là sai lệch văn bản (documentation discrepancy), hoàn toàn không ảnh hưởng đến runtime code hay quyết định sản phẩm.
+> - **OPEN-01:** **CLOSED** (Exact task unlock formula `ceil(2N/3)`).
+> - **OPEN-02..07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.** Tuyệt đối không tự ý quyết định hay đóng bất kỳ mục nào.
+> - Thiết lập tài liệu chuẩn đóng băng ranh giới sản phẩm: `docs/PRODUCT_BASELINE.md`.
+
+### Bản chất giai đoạn:
+- **Governance Correction:**
+  * Đồng bộ hóa và chuẩn hóa toàn bộ các văn bản quản trị (`OPEN_ITEMS.md`, `DESIGN_DECISIONS.md`, `IMPLEMENTATION_STATUS.md`, `DESIGN_AUDIT.md`, `PHASE_24_REPORT.md`).
+  * Phân biệt rạch ròi giữa Hành vi Sản phẩm đã quyết định (Product Behavior) và Nền tảng Kỹ thuật hỗ trợ (Technical Foundation).
+- **Code Audit & Runtime Freeze:**
+  * Xác nhận không thay đổi bất kỳ hành vi runtime nào của `TaskUnlockPolicy`, `TaskAppEnforcementAdapter`, `MissionHallViewModel`, `VaultViewModel`, hay `AppDetectorAccessibilityService`.
+  * Không đưa thêm bất kỳ business rule nào ngoài OPEN-01.
+
 ## [Phase 24] - 2026-09-07: PRODUCT FLOW VALIDATION & UNLOCK UX
 
 > [!IMPORTANT]

@@ -104,15 +104,15 @@ Bộ kiểm thử `ProductFlowValidationTest.kt` đã bao phủ toàn diện cá
 
 ## 7. GOVERNANCE CONFIRMATION
 
-| Mã Quyết Định | Nội Dung | Trạng Thái Hiện Tại | Ghi Chú |
+| Mã Quyết Định | Nội Dung Canonical | Trạng Thái Hiện Tại | Ghi Chú |
 | :--- | :--- | :---: | :--- |
-| **OPEN-01** | Công thức giải phong ấn dựa trên nhiệm vụ: $\lceil 2N/3 \rceil$ | **CLOSED** | Đã triển khai chuẩn hóa tại Phase 23 & validate ở Phase 24. |
-| **OPEN-02** | Công thức điểm Tu Luyện (Cultivation Points) | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
-| **OPEN-03** | Công thức Tháp Thí Luyện / Tầng 4 | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
-| **OPEN-04** | Technical App Lock sau POC (DeviceAdmin, v.v.) | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
-| **OPEN-05** | Chiến lược giải phong ấn khẩn cấp (Emergency Break) | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
-| **OPEN-06** | Giới hạn số lượng nhiệm vụ tối đa liên kết 1 app | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
-| **OPEN-07** | Cơ chế đồng bộ nhiều thiết bị | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-01** | Exact task unlock formula $\lceil 2N/3 \rceil$ | **CLOSED** | Đã triển khai chuẩn hóa tại Phase 23 & validate ở Phase 24. |
+| **OPEN-02** | Point / Reward final formula | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-03** | Tower detailed formula / Floor 4 exception | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-04** | Technical App Lock product decision | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-05** | Official DB schema & migration strategy | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
+| **OPEN-07** | UI state machine / animation / audio tokens | **OPEN** | Giữ nguyên trạng thái, không can thiệp. |
 
 ---
 

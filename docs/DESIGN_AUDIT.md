@@ -233,3 +233,20 @@ Bám sát các Checkpoints (CP) đã chốt trong Canonical Design Mục 27:
 2. Nền tảng kỹ thuật App Lock hiện có là **TECHNICAL FOUNDATION** cực kỳ vững chắc, đạt chuẩn sản xuất ở tầng chặn ứng dụng, nhưng **chưa phải là sản phẩm hoàn chỉnh** (các phân hệ sản phẩm Tiên Hiệp cốt lõi hiện đạt 0%).
 3. Dự án **TUYỆT ĐỐI KHÔNG BÁO CÁO LÀ PRODUCTION READY** cho toàn bộ sản phẩm.
 4. Lộ trình phát triển tiếp theo phải tập trung vào Data Layer (Room DB), Chu kỳ ngày 04:00, Bảo Khố và Nhiệm Vụ Đường trước khi mở rộng sang AI Core.
+
+---
+
+## 16. GOVERNANCE CORRECTION AUDIT (PHASE 25)
+
+- **Phát hiện sai lệch (Discrepancy Found):**
+  Trong báo cáo `PHASE_24_REPORT.md` (Mục 7), danh sách mapping các mục OPEN-04, OPEN-05, OPEN-06, OPEN-07 đã bị trích dẫn nhầm thành các tên gọi không chính thức (Emergency Break, Limit tasks per app, Multi-device sync), không khớp với Mục 28 của `CANONICAL_DESIGN_V2.md`.
+- **Phân loại sai lệch (Classification):**
+  ```text
+  Documentation discrepancy
+  NOT runtime/business logic defect
+  ```
+- **Hành động khắc phục (Action Taken):**
+  1. Đã khôi phục và chuẩn hóa bảng mapping OPEN-01..07 trong toàn bộ tài liệu dự án (`CANONICAL_DESIGN_V2.md`, `OPEN_ITEMS.md`, `DESIGN_DECISIONS.md`, `IMPLEMENTATION_STATUS.md`, `PHASE_24_REPORT.md`).
+  2. Xác nhận 100% mã nguồn không bị ảnh hưởng, không có bất kỳ logic tự ý nào được thêm vào cho OPEN-02..07.
+  3. Đóng băng Product Baseline hiện tại trong `docs/PRODUCT_BASELINE.md`.
+

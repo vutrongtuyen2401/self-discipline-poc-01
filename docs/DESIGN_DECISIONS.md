@@ -362,4 +362,34 @@ required = (2 * N + 2) / 3
 - **OPEN-01:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Đã ký duyệt và hiện thực hóa đầy đủ.
 - **OPEN-02 đến OPEN-07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.** Tuyệt đối không tự ý quyết định hay đóng các mục còn lại.
 
+---
+
+## 11. ĐÍNH CHÍNH QUẢN TRỊ & ĐÓNG BĂNG PRODUCT BASELINE (PHASE 25)
+
+> [!IMPORTANT]
+> **Khôi phục Canonical Source of Truth:** Bảng mapping OPEN-01..07 tuân thủ tuyệt đối Mục 28 của `docs/CANONICAL_DESIGN_V2.md`. Mọi sự sai lệch về tên gọi hoặc suy diễn trong tài liệu báo cáo trước đây đều là sai lệch văn bản (documentation discrepancy), không phản ánh thay đổi runtime hay quyết định sản phẩm mới.
+
+### 11.1. Bảng Mapping Chuẩn Hóa Canonical (Single Source of Truth)
+| Mã ID | Tên Vấn Đề Chuẩn (Canonical Name) | Trạng Thái Quản Trị | Ghi Chú Ranh Giới |
+| :---: | :--- | :---: | :--- |
+| **OPEN-01** | Exact task unlock formula `ceil(2N/3)` | **CLOSED** | Đã quyết định chính thức (Phase 23) và kiểm chứng toàn diện (Phase 24). |
+| **OPEN-02** | Point / Reward final formula | **OPEN** | Tuyệt đối không tự ý triển khai hệ thống điểm/thưởng. |
+| **OPEN-03** | Tower detailed formula / Floor 4 exception | **OPEN** | Tuyệt đối không tự ý triển khai Tháp Thí Luyện. |
+| **OPEN-04** | Technical App Lock product decision | **OPEN** | Hạ tầng kỹ thuật hiện có chỉ là Technical Foundation, chưa phải quyết định sản phẩm cuối cùng. |
+| **OPEN-05** | Official DB schema & migration strategy | **OPEN** | Room DB hiện tại chỉ phục vụ POC/Checkpoint, schema chính thức và migration strategy vẫn OPEN. |
+| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Tuyệt đối không tự ý triển khai Cloud sync hay retention policy. |
+| **OPEN-07** | UI state machine / animation / audio tokens | **OPEN** | UI Tokens hiện có chỉ là Foundation, audio/voice assets và state machine mở rộng vẫn OPEN. |
+
+### 11.2. Đóng Băng Ranh Giới Sản Phẩm (Product Baseline Freeze)
+1. **Product behavior đã chốt:**
+   - Nhiệm Vụ Đường: Tạo, quản lý, hoàn thành task chuỗi tuần tự.
+   - Bảo Khố: Thêm/gỡ app phong ấn (giao diện không icon ổ khóa).
+   - Liên kết M:N: Task $\leftrightarrow$ App.
+   - Luồng mở khóa nghiệp vụ: `required = (2 * N + 2) / 3`, $N=0 \rightarrow$ LOCK.
+   - Chu kỳ ngày nghiệp vụ: Reset mốc `04:00:00` hàng ngày.
+   - Độ ưu tiên: Technical App Lock luôn cấm tuyệt đối nếu kích hoạt.
+2. **Phân định rạch ròi:** Nền tảng kỹ thuật (Accessibility, Room DB proposal, Snapshot Cache, Cultivation UI Foundation) không tự động biến thành Quyết định Sản phẩm (Product Decision).
+3. **OPEN-02..07 bất biến:** Giữ nguyên trạng thái `OPEN` cho đến khi có quyết định bằng văn bản từ Ký chủ.
+
+
 

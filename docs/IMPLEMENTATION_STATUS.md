@@ -38,12 +38,19 @@
 
 ---
 
-## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 23)
-- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **4 phân hệ** (Chu kỳ ngày 04:00 — CP5; Bảo Khố — CP4; Quan hệ App-Task Many-to-Many — CP6; Luồng Mở Khóa theo Nhiệm Vụ — CP9 Phase 23).
+## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 25 — Baseline Freeze)
+- **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **4 phân hệ** (Chu kỳ ngày 04:00 — CP5; Bảo Khố — CP4; Quan hệ App-Task Many-to-Many — CP6; Luồng Mở Khóa theo Nhiệm Vụ — CP9 / OPEN-01).
 - **PARTIAL (Có một phần nghiệp vụ):** **2 phân hệ** (Hệ thống Phong Ấn App Lock — đã tích hợp mở khóa theo nhiệm vụ; Nhiệm Vụ Đường — Core Task & Basic Mission Hall Flow CP3, CP7 tích hợp liên kết app Bảo Khố và Cultivation UI).
-- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có đầy đủ tính năng mở rộng):** **2 phân hệ** (An toàn tầng OS; Cultivation UI Design System Foundation).
+- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có quyết định sản phẩm cuối):** **2 phân hệ** (An toàn tầng OS; Cultivation UI Design System Foundation).
 - **NOT IMPLEMENTED (Hoàn toàn chưa xây dựng):** **6 phân hệ** (Tu Luyện, Bí Cảnh, Thương Thành, Túi Trữ Vật, Voucher, Khí Linh AI Core).
-- **OPEN (Chờ quyết định chính thức từ Ký chủ):** **6 phân hệ** (Công thức điểm OPEN-02, Tháp Thí Luyện OPEN-03, Chi tiết kỹ thuật App Lock sau POC OPEN-04, Lược đồ DB chính thức & Migration OPEN-05, Memory / History retention & Cloud sync OPEN-06, UI state / animation / audio tokens OPEN-07). *(OPEN-01 đã chính thức ĐÓNG)*
+- **CANONICAL OPEN ITEMS STATUS (Single Source of Truth):**
+  * **OPEN-01:** **CLOSED** (Exact task unlock formula `ceil(2N/3)` — đã hoàn thành ở Phase 23, validate ở Phase 24).
+  * **OPEN-02:** **OPEN** (Point / Reward final formula).
+  * **OPEN-03:** **OPEN** (Tower detailed formula / Floor 4 exception).
+  * **OPEN-04:** **OPEN** (Technical App Lock product decision).
+  * **OPEN-05:** **OPEN** (Official DB schema & migration strategy — Room DB hiện tại chỉ là Technical Foundation).
+  * **OPEN-06:** **OPEN** (Memory / Cloud retention & sync policy).
+  * **OPEN-07:** **OPEN** (UI state machine / animation / audio tokens).
 
-> **KẾT LUẬN CỐT LÕI (PHASE 23):**  
-> OPEN-01 was explicitly decided by the product owner and implemented accordingly. Hệ thống đã triển khai cấu phần nghiệp vụ thuần khiết `TaskUnlockPolicy` với công thức integer arithmetic `(2 * N + 2) / 3`, kiểm chứng hoàn hảo cho mọi $N = 0 \dots 35$ và bảng chuẩn $N = 0 \dots 10$. `TaskAppEnforcementAdapter` tích hợp luồng mở khóa với snapshot cache đa luồng an toàn cho Accessibility Main Thread (< 0.05ms, O(1)). Khóa kỹ thuật (Technical App Lock) duy trì độ ưu tiên tuyệt đối. Toàn bộ 319+ bài kiểm thử tự động PASS 100%, build APK thành công và kiểm chứng hoạt động trực tiếp trên thiết bị vivo iQOO Neo 10 (V2425A). OPEN-01 chính thức ĐÓNG; toàn bộ OPEN-02..07 tiếp tục giữ nguyên trạng thái OPEN.
+> **KẾT LUẬN QUẢN TRỊ (PHASE 25):**  
+> Tuyệt đối không tự biến các mục OPEN thành DONE chỉ dựa trên Technical Foundation hiện có. Product Baseline chính thức được đóng băng sau OPEN-01. Mọi mục từ OPEN-02 đến OPEN-07 tiếp tục duy trì trạng thái OPEN nghiêm ngặt cho đến khi Ký chủ có quyết định văn bản chính thức.
