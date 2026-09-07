@@ -4,6 +4,53 @@ Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc
 
 ---
 
+## [Phase 19] - 2026-09-07: VAULT INTEGRATION & TASK ↔ APP LINKAGE
+### Bản chất giai đoạn:
+- **Hiện thực hóa Checkpoint CP4 (Bảo Khố — Vault Domain) theo Canonical Design V2 (Mục 6).**
+- **Hiện thực hóa Checkpoint CP6 (Quan hệ Task ↔ App Many-to-Many) theo Canonical Design V2 (Mục 4, 5, 6).**
+- **Thiết lập Ranh giới An toàn `TaskAppEnforcementAdapter` (`DISABLED_PENDING_OPEN_01`), bảo vệ tuyệt đối OPEN-01 (không công thức 2/3, không tỷ lệ %, không điểm thưởng).**
+- **Tích hợp Điều hướng 3 Tab tại `MainActivity.kt`: Nhiệm Vụ Đường, Bảo Khố, Quản Trị Thực Thi.**
+- **Bảo toàn 100% Frozen Core App Lock và toàn bộ các bài test hồi quy cũ.**
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+### Các nội dung đã thực hiện:
+- **Domain Layer (Vault Models, Discovery & UseCases):**
+  - Tạo `VaultApp.kt`, `DiscoveredApp`: Mô hình hóa app đã cài đặt và app trong Bảo Khố (`packageName`, `appName`, `addedAtWallMillis`, `isLockedByDefault`).
+  - Tạo `InstalledAppDiscoveryService.kt`: Khám phá ứng dụng launcher qua `PackageManager.queryIntentActivities` với intent `ACTION_MAIN` + `CATEGORY_LAUNCHER`, tự loại trừ package ứng dụng hiện tại. Bổ sung thẻ `<queries>` trong `AndroidManifest.xml`.
+  - Tạo `AddVaultAppUseCase.kt`: Thêm ứng dụng vào Bảo Khố (`vault_apps`), idempotent khi đã tồn tại.
+  - Tạo `RemoveVaultAppUseCase.kt`: Gỡ ứng dụng khỏi Bảo Khố, tự động cascade gỡ sạch liên kết trong `task_app_cross_ref`, giữ nguyên toàn bộ tasks và lịch sử hoàn thành.
+  - Tạo `GetVaultAppsUseCase.kt`: Lấy danh sách hoặc observe luồng Flow các app trong Bảo Khố.
+  - Tạo `GetTaskLinkedAppsUseCase.kt`: Truy vấn danh sách app liên kết với task cụ thể.
+  - Tạo `UpdateTaskLinkedAppsUseCase.kt`: Cập nhật đồng bộ danh sách app liên kết cho task, kiểm tra chặt chẽ chỉ cho phép liên kết với app đang có trong Bảo Khố.
+- **OPEN-01 Safety Boundary (Enforcement Isolation):**
+  - Tạo `TaskAppEnforcementAdapter.kt`: Ranh giới an toàn cô lập giữa Product Vault và Technical App Lock runtime.
+  - Trả về `TaskAppEnforcementStatus.DISABLED_PENDING_OPEN_01` và `isTaskBasedUnlockApproved = false`.
+  - Khẳng định rõ không tự phát minh công thức 2/3 hay tỷ lệ giải phong ấn khi Ký chủ chưa chốt OPEN-01.
+- **UI & Presentation Layer:**
+  - Tạo `VaultViewModel.kt`: Quản lý `VaultUiState`, danh sách app trong Bảo Khố, tìm kiếm app cài đặt trên máy, dialog thêm app, dialog xác nhận gỡ app.
+  - Tạo `VaultScreen.kt`: Màn hình Bảo Khố với card Quy Mô Bảo Khố, danh sách ô item phong cách túi đồ tu tiên, **TUYỆT ĐỐI KHÔNG HIỂN THỊ ICON Ổ KHÓA TRÊN AVATAR** (tuân thủ nghiêm ngặt Canonical Mục 6), dialog thu nạp app cài đặt, dialog cảnh báo gỡ app kèm giải thích cascade.
+  - Nâng cấp `MissionHallViewModel.kt` & `MissionHallScreen.kt`:
+    - Thẻ nhiệm vụ hiển thị danh sách các chip ứng dụng liên kết và nút `+ Liên kết App` / `Sửa liên kết`.
+    - Tạo `TaskLinkageDialog`: Cho phép Ký chủ chọn các ứng dụng từ Bảo Khố để liên kết với nhiệm vụ. Phản ứng tức thì khi app bị gỡ khỏi Bảo Khố.
+  - Cập nhật `MainActivity.kt`: Tích hợp Material 3 `NavigationBar` gồm 3 Tab:
+    - Tab 0: Nhiệm Vụ Đường (`MissionHallScreen`).
+    - Tab 1: Bảo Khố (`VaultScreen`).
+    - Tab 2: Quản Trị Thực Thi (`SettingsScreen` — bảo toàn 100% App Lock cũ).
+- **Kiểm thử & Xác minh Toàn diện:**
+  - Tạo `VaultDomainTest.kt`: 22 test scenarios bao phủ toàn bộ Test Matrix A-E (thêm app, danh sách app, gỡ app, persistence, duplicate safe, re-add không tự phục hồi liên kết cũ, 3 kịch bản many-to-many A/B/C, cascade deletion bảo toàn task & completion, OPEN-01 safety boundary).
+  - Tạo `VaultViewModelTest.kt`: 5 test scenarios cho ViewModel Bảo Khố.
+  - Bổ sung `MissionHallViewModelTest.kt`: Thêm 3 test scenarios cho luồng liên kết Task-App (tổng 9 tests PASS).
+  - Tổng số unit tests: **286/286 PASS (100% Success Rate)**.
+  - Xác minh thực tế trên thiết bị thực (vivo iQOO Neo 10 / Android 15):
+    - Mở Bảo Khố, chọn thu nạp 2 app (`1.1.1.1` và `AgklbjBkqsM`).
+    - Sang Nhiệm Vụ Đường, tạo task `ChayBo`.
+    - Mở dialog liên kết, chọn cả 2 app Bảo Khố, lưu liên kết, hiển thị 2 chip app.
+    - Sang Bảo Khố, bấm Gỡ app `1.1.1.1`, xác nhận dialog.
+    - Quay lại Nhiệm Vụ Đường: Task `ChayBo` tự động chỉ còn lại `AgklbjBkqsM`, task và lịch sử hoàn thành giữ nguyên vẹn 100%.
+    - Chuyển sang Tab Quản Trị Thực Thi: Toàn bộ cấu hình kỹ thuật App Lock không bị ảnh hưởng.
+
+---
+
 ## [Phase 18] - 2026-09-07: CORE TASK DOMAIN & BASIC MISSION HALL
 ### Bản chất giai đoạn:
 - **Hiện thực hóa Checkpoint CP3 (Core Task Domain & Basic Mission Hall Flow) theo Canonical Design V2 (Mục 5 & Mục 8).**

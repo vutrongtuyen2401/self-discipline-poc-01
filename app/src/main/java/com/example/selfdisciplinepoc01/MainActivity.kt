@@ -63,8 +63,11 @@ import com.example.selfdisciplinepoc01.target.model.TimeLimit
 import com.example.selfdisciplinepoc01.target.model.TimeSchedule
 import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
 import com.example.selfdisciplinepoc01.time.BusinessDayProviderHolder
+import com.example.selfdisciplinepoc01.domain.discovery.InstalledAppDiscoveryServiceImpl
 import com.example.selfdisciplinepoc01.ui.missionhall.MissionHallScreen
 import com.example.selfdisciplinepoc01.ui.missionhall.MissionHallViewModel
+import com.example.selfdisciplinepoc01.ui.vault.VaultScreen
+import com.example.selfdisciplinepoc01.ui.vault.VaultViewModel
 import com.example.selfdisciplinepoc01.usage.UsageTracker
 import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
 import kotlinx.coroutines.delay
@@ -141,9 +144,14 @@ fun MainAppScreen() {
     val context = LocalContext.current
     val repository = remember { CoreDataRepositoryProvider.getRepository(context) }
     val businessDayProvider = remember { BusinessDayProviderHolder.instance }
+    val discoveryService = remember { InstalledAppDiscoveryServiceImpl(context) }
     val missionHallViewModel = remember {
         MissionHallViewModel.provideFactory(repository, businessDayProvider)
             .create(MissionHallViewModel::class.java)
+    }
+    val vaultViewModel = remember {
+        VaultViewModel.provideFactory(repository, discoveryService)
+            .create(VaultViewModel::class.java)
     }
 
     Scaffold(
@@ -151,13 +159,22 @@ fun MainAppScreen() {
             NavigationBar {
                 NavigationBarItem(
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    onClick = {
+                        selectedTab = 0
+                        missionHallViewModel.refresh()
+                    },
                     label = { Text("Nhiệm Vụ Đường") },
                     icon = { Text("📜", fontSize = 18.sp) }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    label = { Text("Bảo Khố") },
+                    icon = { Text("🏛️", fontSize = 18.sp) }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     label = { Text("Quản Trị Thực Thi") },
                     icon = { Text("🛡️", fontSize = 18.sp) }
                 )
@@ -171,7 +188,8 @@ fun MainAppScreen() {
         ) {
             when (selectedTab) {
                 0 -> MissionHallScreen(viewModel = missionHallViewModel)
-                1 -> ForegroundDetectorScreen()
+                1 -> VaultScreen(viewModel = vaultViewModel)
+                2 -> ForegroundDetectorScreen()
             }
         }
     }

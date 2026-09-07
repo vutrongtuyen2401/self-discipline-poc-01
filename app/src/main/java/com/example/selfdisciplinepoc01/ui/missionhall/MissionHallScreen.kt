@@ -1,9 +1,12 @@
 package com.example.selfdisciplinepoc01.ui.missionhall
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -31,22 +35,23 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.selfdisciplinepoc01.domain.model.Task
+import com.example.selfdisciplinepoc01.domain.model.VaultApp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -137,7 +142,9 @@ fun MissionHallScreen(
                             currentTask = uiState.chain.currentTask,
                             isAllCompleted = uiState.chain.isAllCompleted,
                             isEmpty = uiState.chain.isEmpty,
-                            onComplete = { taskId -> viewModel.onCompleteTask(taskId) }
+                            linkedApps = uiState.chain.currentTask?.let { uiState.taskLinkedAppsMap[it.id] } ?: emptyList(),
+                            onComplete = { taskId -> viewModel.onCompleteTask(taskId) },
+                            onOpenLinkage = { task -> viewModel.onOpenLinkageDialog(task) }
                         )
                     }
 
@@ -157,11 +164,14 @@ fun MissionHallScreen(
                             key = { it.id }
                         ) { task ->
                             val isCurrent = task.id == uiState.chain.currentTask?.id
+                            val linkedApps = uiState.taskLinkedAppsMap[task.id] ?: emptyList()
                             TaskItemCard(
                                 task = task,
                                 isCurrent = isCurrent,
+                                linkedApps = linkedApps,
                                 onComplete = { viewModel.onCompleteTask(task.id) },
-                                onArchive = { viewModel.onArchiveTask(task.id) }
+                                onArchive = { viewModel.onArchiveTask(task.id) },
+                                onOpenLinkage = { viewModel.onOpenLinkageDialog(task) }
                             )
                         }
                     }
@@ -184,7 +194,11 @@ fun MissionHallScreen(
                             items = uiState.chain.completedTasksToday,
                             key = { "completed_${it.id}" }
                         ) { task ->
-                            CompletedTaskItemCard(task = task)
+                            val linkedApps = uiState.taskLinkedAppsMap[task.id] ?: emptyList()
+                            CompletedTaskItemCard(
+                                task = task,
+                                linkedApps = linkedApps
+                            )
                         }
                     }
                 }
@@ -198,6 +212,18 @@ fun MissionHallScreen(
                     onNameChange = { viewModel.onInputNameChanged(it) },
                     onConfirm = { viewModel.onConfirmAddTask() },
                     onDismiss = { viewModel.onDismissAddDialog() }
+                )
+            }
+
+            // Task ↔ App Linkage Dialog (Canonical Design V2 Section 5 & 6)
+            uiState.taskSelectedForLinkage?.let { task ->
+                TaskLinkageDialog(
+                    task = task,
+                    availableVaultApps = uiState.availableVaultApps,
+                    selectedPackageNames = uiState.selectedPackageNames,
+                    onToggleApp = { viewModel.onToggleAppSelection(it) },
+                    onConfirm = { viewModel.onSaveTaskLinkage() },
+                    onDismiss = { viewModel.onDismissLinkageDialog() }
                 )
             }
         }
@@ -259,12 +285,15 @@ fun MissionProgressCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CurrentTaskHighlight(
     currentTask: Task?,
     isAllCompleted: Boolean,
     isEmpty: Boolean,
-    onComplete: (Long) -> Unit
+    linkedApps: List<VaultApp>,
+    onComplete: (Long) -> Unit,
+    onOpenLinkage: (Task) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -306,19 +335,71 @@ fun CurrentTaskHighlight(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF311B92)
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = { onComplete(currentTask.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF673AB7)
-                        )
-                    ) {
+
+                    // Hiển thị các ứng dụng liên kết
+                    Spacer(modifier = Modifier.height(6.dp))
+                    if (linkedApps.isNotEmpty()) {
                         Text(
-                            text = "Xác nhận hoàn thành nhiệm vụ này",
-                            fontWeight = FontWeight.SemiBold
+                            text = "Ứng dụng liên kết:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF4527A0)
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            linkedApps.forEach { app ->
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFD1C4E9)
+                                ) {
+                                    Text(
+                                        text = app.appName,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF311B92),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Chưa liên kết ứng dụng Bảo Khố",
+                            fontSize = 11.sp,
+                            color = Color(0xFF757575)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onOpenLinkage(currentTask) },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = "Liên kết App", fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = { onComplete(currentTask.id) },
+                            modifier = Modifier.weight(2f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF673AB7)
+                            )
+                        ) {
+                            Text(
+                                text = "Xác nhận hoàn thành",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
@@ -326,12 +407,15 @@ fun CurrentTaskHighlight(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskItemCard(
     task: Task,
     isCurrent: Boolean,
+    linkedApps: List<VaultApp>,
     onComplete: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    onOpenLinkage: () -> Unit
 ) {
     val formattedDate = remember(task.createdAtWallMillis) {
         SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault()).format(Date(task.createdAtWallMillis))
@@ -345,57 +429,115 @@ fun TaskItemCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(14.dp)
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = task.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Tạo lúc: $formattedDate",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                OutlinedButton(
-                    onClick = onComplete,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(text = "Xong", fontSize = 12.sp)
+                    Text(
+                        text = task.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Tạo lúc: $formattedDate",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onComplete,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = "Xong", fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    TextButton(
+                        onClick = onArchive,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = "Xóa", color = Color(0xFFD32F2F), fontSize = 12.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Hiển thị danh sách ứng dụng liên kết và nút chọn liên kết
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (linkedApps.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        linkedApps.forEach { app ->
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFE0F2F1)
+                            ) {
+                                Text(
+                                    text = app.appName,
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF004D40),
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Chưa liên kết ứng dụng",
+                        fontSize = 11.sp,
+                        color = Color(0xFF9E9E9E),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
                 TextButton(
-                    onClick = onArchive,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    onClick = onOpenLinkage,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text(text = "Xóa", color = Color(0xFFD32F2F), fontSize = 12.sp)
+                    Text(
+                        text = if (linkedApps.isEmpty()) "+ Liên kết App" else "Sửa liên kết (${linkedApps.size})",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CompletedTaskItemCard(
-    task: Task
+    task: Task,
+    linkedApps: List<VaultApp>
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -404,26 +546,52 @@ fun CompletedTaskItemCard(
             containerColor = Color(0xFFF5F5F5)
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .background(Color(0xFF4CAF50), CircleShape),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(Color(0xFF4CAF50), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = task.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF757575)
+                )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = task.name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF757575)
-            )
+
+            if (linkedApps.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    modifier = Modifier.padding(start = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    linkedApps.forEach { app ->
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFEEEEEE)
+                        ) {
+                            Text(
+                                text = app.appName,
+                                fontSize = 9.sp,
+                                color = Color(0xFF757575),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -473,6 +641,120 @@ fun AddTaskMinimalDialog(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Xác nhận")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Hủy")
+            }
+        }
+    )
+}
+
+/**
+ * Dialog chọn ứng dụng từ Bảo Khố để liên kết với Task.
+ * Canonical Design V2 (Mục 5 & 6):
+ * - Chỉ cho phép chọn từ các app hiện có trong Bảo Khố.
+ * - Cho phép chọn nhiều app.
+ * - Thuật ngữ trung tính: "Ứng dụng liên kết" (không hiển thị 2/3 hay tỷ lệ mở khóa).
+ */
+@Composable
+fun TaskLinkageDialog(
+    task: Task,
+    availableVaultApps: List<VaultApp>,
+    selectedPackageNames: Set<String>,
+    onToggleApp: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    text = "Ứng Dụng Liên Kết",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = "Nhiệm vụ: ${task.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+            ) {
+                Text(
+                    text = "Chọn các ứng dụng từ Bảo Khố mà Ký chủ muốn liên kết với nhiệm vụ này:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (availableVaultApps.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Bảo Khố hiện đang trống rỗng.\nKý chủ hãy thêm ứng dụng vào Bảo Khố trước!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFC62828),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(availableVaultApps, key = { it.packageName }) { app ->
+                            val isSelected = selectedPackageNames.contains(app.packageName)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onToggleApp(app.packageName) }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { onToggleApp(app.packageName) }
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = app.appName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = app.packageName,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Lưu liên kết")
             }
         },
         dismissButton = {

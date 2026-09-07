@@ -42,13 +42,19 @@ class MissionHallViewModelTest {
     private lateinit var createTaskUseCase: CreateTaskUseCase
     private lateinit var completeTaskUseCase: CompleteTaskUseCase
     private lateinit var archiveTaskUseCase: ArchiveTaskUseCase
+    private lateinit var getTaskLinkedAppsUseCase: com.example.selfdisciplinepoc01.domain.usecase.GetTaskLinkedAppsUseCase
+    private lateinit var updateTaskLinkedAppsUseCase: com.example.selfdisciplinepoc01.domain.usecase.UpdateTaskLinkedAppsUseCase
+    private lateinit var getVaultAppsUseCase: com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase
 
     private fun createViewModel(): MissionHallViewModel {
         return MissionHallViewModel(
             getTasksUseCase,
             createTaskUseCase,
             completeTaskUseCase,
-            archiveTaskUseCase
+            archiveTaskUseCase,
+            getTaskLinkedAppsUseCase,
+            updateTaskLinkedAppsUseCase,
+            getVaultAppsUseCase
         )
     }
 
@@ -65,6 +71,9 @@ class MissionHallViewModelTest {
         createTaskUseCase = CreateTaskUseCase(repository)
         completeTaskUseCase = CompleteTaskUseCase(repository, businessDayProvider)
         archiveTaskUseCase = ArchiveTaskUseCase(repository)
+        getTaskLinkedAppsUseCase = com.example.selfdisciplinepoc01.domain.usecase.GetTaskLinkedAppsUseCase(repository)
+        updateTaskLinkedAppsUseCase = com.example.selfdisciplinepoc01.domain.usecase.UpdateTaskLinkedAppsUseCase(repository)
+        getVaultAppsUseCase = com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase(repository)
     }
 
     @After
@@ -181,5 +190,92 @@ class MissionHallViewModelTest {
         }
         assertEquals(0, stateAfter.chain.totalActiveTasks)
         assertNull(stateAfter.chain.currentTask)
+    }
+
+    @Test
+    fun testViewModel_linkTaskToVaultApps_success() = runBlocking {
+        val viewModel = createViewModel()
+        withTimeout(3000) { viewModel.uiState.first { !it.isLoading } }
+
+        // Setup 1 task and 2 apps in Vault
+        repository.createTask("Task A")
+        repository.addVaultApp("com.android.chrome", "Chrome")
+        repository.addVaultApp("com.facebook.katana", "Facebook")
+        viewModel.refresh()
+
+        val task = withTimeout(3000) { viewModel.uiState.first { it.chain.currentTask != null } }.chain.currentTask!!
+
+        viewModel.onOpenLinkageDialog(task)
+        val dialogState = withTimeout(3000) {
+            viewModel.uiState.first { it.taskSelectedForLinkage != null && it.availableVaultApps.size == 2 }
+        }
+        assertEquals(2, dialogState.availableVaultApps.size)
+        assertTrue(dialogState.selectedPackageNames.isEmpty())
+
+        // Select Chrome
+        viewModel.onToggleAppSelection("com.android.chrome")
+        assertTrue(viewModel.uiState.value.selectedPackageNames.contains("com.android.chrome"))
+
+        // Save
+        viewModel.onSaveTaskLinkage()
+        val stateAfterSave = withTimeout(3000) {
+            viewModel.uiState.first { it.taskSelectedForLinkage == null && it.taskLinkedAppsMap[task.id]?.size == 1 }
+        }
+        assertNull(stateAfterSave.taskSelectedForLinkage)
+        assertEquals(1, stateAfterSave.taskLinkedAppsMap[task.id]?.size)
+        assertEquals("com.android.chrome", stateAfterSave.taskLinkedAppsMap[task.id]?.get(0)?.packageName)
+    }
+
+    @Test
+    fun testViewModel_linkTaskToMultipleApps_success() = runBlocking {
+        val viewModel = createViewModel()
+        withTimeout(3000) { viewModel.uiState.first { !it.isLoading } }
+
+        repository.createTask("Task B")
+        repository.addVaultApp("com.app.1", "App 1")
+        repository.addVaultApp("com.app.2", "App 2")
+        viewModel.refresh()
+
+        val task = withTimeout(3000) { viewModel.uiState.first { it.chain.currentTask != null } }.chain.currentTask!!
+
+        viewModel.onOpenLinkageDialog(task)
+        withTimeout(3000) { viewModel.uiState.first { it.taskSelectedForLinkage != null } }
+
+        viewModel.onToggleAppSelection("com.app.1")
+        viewModel.onToggleAppSelection("com.app.2")
+        assertEquals(2, viewModel.uiState.value.selectedPackageNames.size)
+
+        viewModel.onSaveTaskLinkage()
+        val stateAfter = withTimeout(3000) {
+            viewModel.uiState.first { it.taskSelectedForLinkage == null && it.taskLinkedAppsMap[task.id]?.size == 2 }
+        }
+        assertEquals(2, stateAfter.taskLinkedAppsMap[task.id]?.size)
+    }
+
+    @Test
+    fun testViewModel_unlinkApp_updatesState() = runBlocking {
+        val viewModel = createViewModel()
+        withTimeout(3000) { viewModel.uiState.first { !it.isLoading } }
+
+        val taskId = repository.createTask("Task C")
+        repository.addVaultApp("com.app.1", "App 1")
+        repository.linkTaskToApp(taskId, "com.app.1")
+        viewModel.refresh()
+
+        val task = withTimeout(3000) { viewModel.uiState.first { it.chain.currentTask != null } }.chain.currentTask!!
+        assertEquals(1, viewModel.uiState.value.taskLinkedAppsMap[task.id]?.size)
+
+        viewModel.onOpenLinkageDialog(task)
+        withTimeout(3000) { viewModel.uiState.first { it.selectedPackageNames.contains("com.app.1") } }
+
+        // Deselect
+        viewModel.onToggleAppSelection("com.app.1")
+        assertTrue(viewModel.uiState.value.selectedPackageNames.isEmpty())
+
+        viewModel.onSaveTaskLinkage()
+        val stateAfter = withTimeout(3000) {
+            viewModel.uiState.first { it.taskSelectedForLinkage == null && it.taskLinkedAppsMap[task.id]?.isEmpty() == true }
+        }
+        assertEquals(0, stateAfter.taskLinkedAppsMap[task.id]?.size)
     }
 }

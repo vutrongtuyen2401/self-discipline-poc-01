@@ -33,6 +33,7 @@ interface CoreDataRepository {
     suspend fun linkTaskToApp(taskId: Long, packageName: String)
     suspend fun linkTaskToApps(taskId: Long, packageNames: List<String>)
     suspend fun unlinkTaskFromApp(taskId: Long, packageName: String)
+    suspend fun syncTaskLinkedApps(taskId: Long, packageNames: List<String>)
     suspend fun getAppsForTask(taskId: Long): List<AppEntity>
     suspend fun getTasksForApp(packageName: String): List<TaskEntity>
     fun observeAppsForTask(taskId: Long): Flow<List<AppEntity>>

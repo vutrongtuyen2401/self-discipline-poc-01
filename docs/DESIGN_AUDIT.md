@@ -115,10 +115,13 @@ Luồng nghiệp vụ cốt lõi theo quy định tại Canonical Design V2 (M�
 ```
 
 ### Hiện trạng thực thi trong mã nguồn:
-- **Bước [1] -> [4]:** **CHƯA CÓ (0%)**. Hiện tại chỉ có `TargetRepositoryImpl` lưu package tĩnh; chưa có UI Bảo Khố, chưa có Nhiệm Vụ Đường, chưa có liên kết Task <-> App.
-- **Bước [5]:** **ĐÃ CÓ KỸ THUẬT CHẶN (FOUNDATION ONLY)**. `AppDetectorAccessibilityService` và `BlockingShieldOverlay` phát hiện và chặn app mục tiêu thành công 100%, nhưng chỉ kiểm tra theo Schedule/DailyLimit chứ chưa kiểm tra Nhiệm Vụ.
-- **Bước [6] -> [7]:** **CHƯA CÓ (0%)**. `LockScreenActivity` hiện tại chỉ là màn hình debug hiển thị lý do khóa và nút "Quay lại an toàn", hoàn toàn chưa hiển thị nhiệm vụ hay luồng xác nhận hoàn thành nhiệm vụ để mở khóa.
-- **Bước [8]:** **SAI (CONTRADICTORY)**. Code hiện tại đang reset lúc `00:00:00` nửa đêm thay vì `04:00:00` sáng.
+- **Bước [1]:** **ĐÃ CÓ (DONE - CP4)**. Phân hệ Bảo Khố đã hoàn thành: Khám phá app cài đặt, thu nạp app, hiển thị dạng túi đồ ô item (không icon ổ khóa theo Mục 6), gỡ app cascade quan hệ chéo, re-add không tự phục hồi liên kết cũ.
+- **Bước [2]:** **ĐÃ CÓ (DONE - CP3, CP7)**. Phân hệ Nhiệm Vụ Đường đã hoàn thành: Nút thêm nhỏ góc dưới phải, dialog tối giản, hiển thị thẻ chuỗi tuần tự, danh sách chưa làm/đã xong, gắn mốc reset 04:00.
+- **Bước [3]:** **ĐÃ CÓ (DONE - CP6)**. Liên kết Task ↔ App Many-to-Many hoàn chỉnh: Mở dialog liên kết từ task, chỉ cho phép chọn app đang có trong Bảo Khố, lưu vào `TaskAppCrossRef`, cập nhật reactive trên UI thẻ nhiệm vụ.
+- **Bước [4]:** **RANH GIỚI AN TOÀN (PENDING OPEN-01)**. Đã thiết lập `TaskAppEnforcementAdapter` phân định rạch ròi giữa Product Vault và Technical App Lock; trả về `DISABLED_PENDING_OPEN_01` bảo vệ tuyệt đối quy tắc governance, không tự phát minh công thức khóa/mở khóa.
+- **Bước [5]:** **ĐÃ CÓ KỸ THUẬT CHẶN (FOUNDATION ONLY)**. `AppDetectorAccessibilityService` và `BlockingShieldOverlay` phát hiện và chặn app mục tiêu thành công 100% theo Schedule/DailyLimit.
+- **Bước [6] -> [7]:** **CHỜ OPEN-01**. Cơ chế mở khóa theo hoàn thành 2/3 nhiệm vụ hoặc công thức hoàn thành chuỗi đang chờ Ký chủ phê duyệt (OPEN-01).
+- **Bước [8]:** **ĐÃ HOÀN THÀNH (DONE - CP5)**. Đã căn chỉnh mốc reset chu kỳ ngày tại `04:00:00` sáng (Giờ Dần) qua `BusinessDayProvider` từ Phase 17.
 
 ---
 
@@ -144,21 +147,23 @@ Mã nguồn hiện tại chứa một hạ tầng kỹ thuật thực thi App Lo
   - Nhiệm vụ bắt đầu trước 04:00 thuộc chu kỳ cũ, kể cả khi hoàn thành sau 04:00.
   - Sau reset, nhiệm vụ trở lại trạng thái “Chưa hoàn thành” để chu kỳ mới tính lại.
 - **Thực tế trong code:**
-  - `UsageTracker.kt:155` (`getTodayDateString()`): Dùng `LocalDate.now(clock.zone)` -> Reset thời gian sử dụng vào đúng **00:00:00 (Nửa đêm)**.
-- **Kết luận:** **SAI (CONTRADICTORY)**. Đây là mâu thuẫn trực tiếp giữa code và Canonical Design. Cần khắc phục bằng cách bổ sung `BusinessDayProvider` tính ngày theo mốc 04:00 sáng.
+  - `BusinessDayProvider.kt` cung cấp mốc `04:00:00` sáng cho toàn bộ ứng dụng. `UsageTracker.kt` phân bổ thời lượng qua 04:00 chuẩn xác. Đạt Checkpoint CP5 với 12/12 scenarios PASS.
+- **Kết luận:** **ĐÚNG (DONE - CP5)**.
 
 ---
 
 ## 8. TASK / VAULT RELATIONSHIP AUDIT (KIỂM TOÁN QUAN HỆ BẢO KHỐ & NHIỆM VỤ)
 - **Thiết kế Canonical (Mục 4, 5, 6):**
-  - Danh sách app chọn làm "Phần thưởng" mở khóa chỉ lấy từ các app đang có trong Bảo Khố.
-  - Quan hệ là **Many-to-Many**: 1 task có thể mở nhiều app; 1 app có thể có nhiều task (tính riêng, không tự động gộp).
-  - Xóa 1 app khỏi Bảo Khố thì hệ thống phải tự động gỡ app đó khỏi các nhiệm vụ liên quan.
-  - Thêm lại app vào Bảo Khố thì app trở lại trạng thái "chưa phong ấn" trước khi gán nhiệm vụ mới.
-- **Thực tế trong code:**
-  - `LockedApp.kt` chỉ có `packageName`, `appName`, `isLocked`, `schedule`, `dailyLimitMinutes`.
-  - Hoàn toàn chưa có model `Task`, chưa có bảng quan hệ chéo (`TaskAppCrossRef`).
-- **Kết luận:** **THIẾU (NOT IMPLEMENTED)**. Cần giải quyết thông qua Lược đồ Room DB (OPEN-05).
+  - Danh sách app chọn làm "Phần thưởng" / Ứng dụng liên kết chỉ lấy từ các app đang có trong Bảo Khố.
+  - Quan hệ là **Many-to-Many**: 1 task có thể mở nhiều app; 1 app có thể có nhiều task (tính riêng, không tự động gộp). Hỗ trợ cả 3 trường hợp: A (1 task 1 app), B (1 task nhiều app), C (nhiều task cùng 1 app).
+  - Xóa 1 app khỏi Bảo Khố thì hệ thống phải tự động gỡ app đó khỏi các nhiệm vụ liên quan (`TaskAppCrossRef` bị xóa cascade, task và completion history giữ nguyên).
+  - Thêm lại app vào Bảo Khố thì app KHÔNG tự động phục hồi liên kết cũ.
+- **Thực tế trong code (Phase 19):**
+  - Thực thể `AppEntity`, `TaskEntity`, `TaskAppCrossRef` trong Room DB.
+  - Các UseCase: `AddVaultAppUseCase`, `RemoveVaultAppUseCase`, `GetVaultAppsUseCase`, `GetTaskLinkedAppsUseCase`, `UpdateTaskLinkedAppsUseCase`.
+  - Bộ kiểm thử `VaultDomainTest.kt` (22/22 scenarios PASS), `VaultViewModelTest.kt` (5/5 PASS), `MissionHallViewModelTest.kt` (9/9 PASS).
+  - Đã kiểm chứng tương tác trực tiếp 100% trên thiết bị vivo iQOO Neo 10 (Android 15).
+- **Kết luận:** **ĐÚNG (DONE - CP4, CP6)**.
 
 ---
 

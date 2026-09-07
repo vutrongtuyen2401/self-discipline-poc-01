@@ -199,3 +199,57 @@ Tất cả các quyết định dưới đây được trích xuất trực ti�
 - Tuyệt đối không tự ý áp dụng công thức 2/3 (OPEN-01) hay hệ thống điểm thưởng tu vi (OPEN-02).
 - Không thêm các phân hệ Tu Luyện, Tháp Thí Luyện, Thương Thành, Túi Trữ Vật, Khí Linh AI Core, hay audio/visual assets vào mã nguồn.
 
+---
+
+## 8. QUYẾT ĐỊNH KỸ THUẬT & QUẢN TRỊ TRONG PHASE 19 (PHASE 19 VAULT INTEGRATION & TASK ↔ APP LINKAGE)
+
+### 8.1. Hiện Thực Hóa Phân Hệ Bảo Khố (Vault Domain — CP4)
+- **Domain Models:**
+  - `DiscoveredApp`: Ứng dụng đã cài đặt trên thiết bị được tìm thấy qua launcher intent query.
+  - `VaultApp`: Ứng dụng trong Bảo Khố (`packageName`, `appName`, `addedAtWallMillis`, `isLockedByDefault`).
+- **Khám phá ứng dụng an toàn:**
+  - Sử dụng `InstalledAppDiscoveryService` với `PackageManager.queryIntentActivities` lọc theo `Intent.ACTION_MAIN` và `Intent.CATEGORY_LAUNCHER`.
+  - Khai báo `<queries>` hợp lệ trong `AndroidManifest.xml` tuân thủ bảo mật Android 11+ / 15.
+  - Loại bỏ package ứng dụng hiện tại khỏi danh sách. Không yêu cầu thêm quyền nguy hiểm mới.
+- **Tuân thủ thiết kế Canonical Mục 6:**
+  - Giao diện danh sách dạng ô túi đồ / item kho đồ tu tiên.
+  - **Tuyệt đối KHÔNG hiển thị icon ổ khóa trên avatar** theo đúng quy định cấm tại Canonical Design V2 Mục 6.
+
+### 8.2. Hiện Thực Hóa Quan Hệ Task ↔ App Many-to-Many (CP6)
+- **Lưu trữ chuẩn tắc:** Bảng nối quan hệ `TaskAppCrossRef` trong Room Database (`taskId`, `packageName`).
+- **Hỗ trợ đầy đủ 3 kịch bản Many-to-Many bắt buộc:**
+  - Trường hợp A: Task A → App X.
+  - Trường hợp B: Task A → App X và App Y.
+  - Trường hợp C: Task A → App X và Task B → App X.
+- **Ràng buộc nghiệp vụ (Canonical Mục 5, 6):**
+  - Chỉ cho phép liên kết với các ứng dụng **đang hiện diện trong Bảo Khố** (`vault_apps`).
+  - Giao diện Nhiệm Vụ Đường hiển thị các chip ứng dụng liên kết và nút chọn liên kết.
+
+### 8.3. Lifecycle Cascade Removal & Tính Bất Đối Xứng Khi Re-add (Mục 6)
+- **Cascade Removal:** Khi Ký chủ gỡ App X khỏi Bảo Khố:
+  - App X bị xóa khỏi bảng `vault_apps`.
+  - Toàn bộ các dòng `TaskAppCrossRef` trỏ tới App X tự động bị xóa sạch.
+  - Bản thân các nhiệm vụ (`tasks`) và lịch sử hoàn thành (`daily_task_completions`) được giữ nguyên vẹn 100%.
+  - Các app liên kết khác của cùng nhiệm vụ vẫn giữ nguyên.
+- **Tính bất đối xứng (Asymmetry):** Nếu App X được thêm lại vào Bảo Khố sau đó, các liên kết cũ **KHÔNG TỰ ĐỘNG PHỤC HỒI**. App X trở lại trạng thái chưa liên kết nhiệm vụ nào cho đến khi Ký chủ chủ động gán lại.
+
+### 8.4. Ranh Giới An Toàn OPEN-01 (TaskAppEnforcementAdapter)
+- **Phân tách rạch ròi:**
+  - Product Vault & Task Linkage (Room Database).
+  - Technical App Lock Configuration (DataStore & PolicyEngine).
+- **Rào chắn an toàn (Safety Barrier):**
+  - Xây dựng `TaskAppEnforcementAdapter` làm ranh giới cô lập.
+  - Do `OPEN-01` vẫn đang OPEN, adapter trả về trạng thái rõ ràng `DISABLED_PENDING_OPEN_01` và `isTaskBasedUnlockApproved = false`.
+  - Tuyệt đối không tự ý áp dụng công thức 2/3, không tự phát minh tỷ lệ %, không tính toán điểm thưởng để tự động mở khóa.
+  - Tầng thực thi Frozen Core App Lock tiếp tục vận hành độc lập theo DataStore Policy mà không bị phá vỡ.
+
+### 8.5. Tích Hợp Điều Hướng 3 Tab
+- Sử dụng NavigationBar gồm 3 Tab rõ ràng:
+  - **Tab 0:** Nhiệm Vụ Đường (`MissionHallScreen`).
+  - **Tab 1:** Bảo Khố (`VaultScreen`).
+  - **Tab 2:** Quản Trị Thực Thi (`SettingsScreen` - quản trị kỹ thuật App Lock cũ).
+- Bảo toàn 100% khả năng truy cập cấu hình kỹ thuật của hệ thống Phong Ấn cũ.
+
+### 8.6. Quản Trị OPEN Items Trong Phase 19
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+

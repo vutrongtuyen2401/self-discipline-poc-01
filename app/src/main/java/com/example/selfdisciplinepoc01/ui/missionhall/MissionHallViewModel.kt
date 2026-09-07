@@ -5,15 +5,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.domain.model.SequentialTaskChain
+import com.example.selfdisciplinepoc01.domain.model.Task
+import com.example.selfdisciplinepoc01.domain.model.VaultApp
 import com.example.selfdisciplinepoc01.domain.usecase.ArchiveTaskUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.CompleteTaskUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.CreateTaskUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.GetMissionHallTasksUseCase
+import com.example.selfdisciplinepoc01.domain.usecase.GetTaskLinkedAppsUseCase
+import com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase
+import com.example.selfdisciplinepoc01.domain.usecase.UpdateTaskLinkedAppsUseCase
 import com.example.selfdisciplinepoc01.time.BusinessDayProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,14 +27,22 @@ data class MissionHallUiState(
     val isAddingTask: Boolean = false,
     val currentInputName: String = "",
     val inputError: String? = null,
-    val bannerMessage: String? = null
+    val bannerMessage: String? = null,
+    // Phase 19: Task ↔ App Linkage
+    val taskSelectedForLinkage: Task? = null,
+    val availableVaultApps: List<VaultApp> = emptyList(),
+    val selectedPackageNames: Set<String> = emptySet(),
+    val taskLinkedAppsMap: Map<Long, List<VaultApp>> = emptyMap()
 )
 
 class MissionHallViewModel(
     private val getTasksUseCase: GetMissionHallTasksUseCase,
     private val createTaskUseCase: CreateTaskUseCase,
     private val completeTaskUseCase: CompleteTaskUseCase,
-    private val archiveTaskUseCase: ArchiveTaskUseCase
+    private val archiveTaskUseCase: ArchiveTaskUseCase,
+    private val getTaskLinkedAppsUseCase: GetTaskLinkedAppsUseCase,
+    private val updateTaskLinkedAppsUseCase: UpdateTaskLinkedAppsUseCase,
+    private val getVaultAppsUseCase: GetVaultAppsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MissionHallUiState())
@@ -44,8 +56,17 @@ class MissionHallViewModel(
         viewModelScope.launch {
             try {
                 val chain = getTasksUseCase.getSequentialChain()
+                val allTasks = chain.incompleteTasks + chain.completedTasksToday
+                val map = mutableMapOf<Long, List<VaultApp>>()
+                for (task in allTasks) {
+                    map[task.id] = getTaskLinkedAppsUseCase(task.id)
+                }
                 _uiState.update {
-                    it.copy(chain = chain, isLoading = false)
+                    it.copy(
+                        chain = chain,
+                        taskLinkedAppsMap = map,
+                        isLoading = false
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.update {
@@ -89,10 +110,9 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = createTaskUseCase(name)
             result.onSuccess {
-                val updatedChain = getTasksUseCase.getSequentialChain()
+                refresh()
                 _uiState.update {
                     it.copy(
-                        chain = updatedChain,
                         isAddingTask = false,
                         currentInputName = "",
                         inputError = null,
@@ -111,12 +131,9 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = completeTaskUseCase(taskId)
             result.onSuccess {
-                val updatedChain = getTasksUseCase.getSequentialChain()
+                refresh()
                 _uiState.update {
-                    it.copy(
-                        chain = updatedChain,
-                        bannerMessage = "Đã hoàn thành một nhiệm vụ!"
-                    )
+                    it.copy(bannerMessage = "Đã hoàn thành một nhiệm vụ!")
                 }
             }.onFailure { error ->
                 _uiState.update {
@@ -130,18 +147,75 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = archiveTaskUseCase(taskId)
             result.onSuccess {
-                val updatedChain = getTasksUseCase.getSequentialChain()
+                refresh()
                 _uiState.update {
-                    it.copy(
-                        chain = updatedChain,
-                        bannerMessage = "Đã xóa nhiệm vụ khỏi chuỗi."
-                    )
+                    it.copy(bannerMessage = "Đã xóa nhiệm vụ khỏi chuỗi.")
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(bannerMessage = "Lỗi lưu trữ: ${error.message}")
                 }
             }
+        }
+    }
+
+    // --- Phase 19: Task ↔ App Linkage Flow ---
+
+    fun onOpenLinkageDialog(task: Task) {
+        viewModelScope.launch {
+            val available = getVaultAppsUseCase.getAllVaultApps()
+            val linked = getTaskLinkedAppsUseCase(task.id)
+            val selectedPkgs = linked.map { it.packageName }.toSet()
+            _uiState.update {
+                it.copy(
+                    taskSelectedForLinkage = task,
+                    availableVaultApps = available,
+                    selectedPackageNames = selectedPkgs
+                )
+            }
+        }
+    }
+
+    fun onToggleAppSelection(packageName: String) {
+        _uiState.update { state ->
+            val current = state.selectedPackageNames.toMutableSet()
+            if (current.contains(packageName)) {
+                current.remove(packageName)
+            } else {
+                current.add(packageName)
+            }
+            state.copy(selectedPackageNames = current)
+        }
+    }
+
+    fun onSaveTaskLinkage() {
+        val task = _uiState.value.taskSelectedForLinkage ?: return
+        val selected = _uiState.value.selectedPackageNames.toList()
+        viewModelScope.launch {
+            val result = updateTaskLinkedAppsUseCase(task.id, selected)
+            result.onSuccess {
+                refresh()
+                _uiState.update {
+                    it.copy(
+                        taskSelectedForLinkage = null,
+                        selectedPackageNames = emptySet(),
+                        bannerMessage = "Đã cập nhật ứng dụng liên kết cho [${task.name}]."
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(bannerMessage = "Lỗi liên kết ứng dụng: ${error.message}")
+                }
+            }
+        }
+    }
+
+    fun onDismissLinkageDialog() {
+        _uiState.update {
+            it.copy(
+                taskSelectedForLinkage = null,
+                selectedPackageNames = emptySet()
+            )
         }
     }
 
@@ -160,7 +234,10 @@ class MissionHallViewModel(
                     getTasksUseCase = GetMissionHallTasksUseCase(repository, businessDayProvider),
                     createTaskUseCase = CreateTaskUseCase(repository),
                     completeTaskUseCase = CompleteTaskUseCase(repository, businessDayProvider),
-                    archiveTaskUseCase = ArchiveTaskUseCase(repository)
+                    archiveTaskUseCase = ArchiveTaskUseCase(repository),
+                    getTaskLinkedAppsUseCase = GetTaskLinkedAppsUseCase(repository),
+                    updateTaskLinkedAppsUseCase = UpdateTaskLinkedAppsUseCase(repository),
+                    getVaultAppsUseCase = GetVaultAppsUseCase(repository)
                 ) as T
             }
         }

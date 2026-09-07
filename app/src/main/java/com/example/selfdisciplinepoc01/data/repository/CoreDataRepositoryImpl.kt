@@ -104,6 +104,20 @@ class CoreDataRepositoryImpl(
         crossRefDao.deleteRelation(taskId, packageName)
     }
 
+    override suspend fun syncTaskLinkedApps(taskId: Long, packageNames: List<String>) {
+        crossRefDao.deleteByTaskId(taskId)
+        if (packageNames.isNotEmpty()) {
+            val list = packageNames.map { pkg ->
+                TaskAppCrossRef(
+                    taskId = taskId,
+                    appPackageName = pkg,
+                    linkedAtWallMillis = System.currentTimeMillis()
+                )
+            }
+            crossRefDao.insertCrossRefs(list)
+        }
+    }
+
     override suspend fun getAppsForTask(taskId: Long): List<AppEntity> {
         return crossRefDao.getAppsForTask(taskId)
     }
