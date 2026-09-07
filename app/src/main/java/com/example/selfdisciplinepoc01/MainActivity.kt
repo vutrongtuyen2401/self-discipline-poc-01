@@ -28,6 +28,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -55,10 +57,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryProvider
 import com.example.selfdisciplinepoc01.target.model.LockedApp
 import com.example.selfdisciplinepoc01.target.model.TimeLimit
 import com.example.selfdisciplinepoc01.target.model.TimeSchedule
 import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
+import com.example.selfdisciplinepoc01.time.BusinessDayProviderHolder
+import com.example.selfdisciplinepoc01.ui.missionhall.MissionHallScreen
+import com.example.selfdisciplinepoc01.ui.missionhall.MissionHallViewModel
 import com.example.selfdisciplinepoc01.usage.UsageTracker
 import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
 import kotlinx.coroutines.delay
@@ -77,11 +83,12 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ForegroundDetectorScreen()
+                    MainAppScreen()
                 }
             }
         }
     }
+
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
@@ -123,6 +130,48 @@ class MainActivity : ComponentActivity() {
                     AppDetectorAccessibilityService.onPolicyUpdated(policyPkg)
                 }
                 finish()
+            }
+        }
+    }
+}
+
+@Composable
+fun MainAppScreen() {
+    var selectedTab by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+    val repository = remember { CoreDataRepositoryProvider.getRepository(context) }
+    val businessDayProvider = remember { BusinessDayProviderHolder.instance }
+    val missionHallViewModel = remember {
+        MissionHallViewModel.provideFactory(repository, businessDayProvider)
+            .create(MissionHallViewModel::class.java)
+    }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    label = { Text("Nhiệm Vụ Đường") },
+                    icon = { Text("📜", fontSize = 18.sp) }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    label = { Text("Quản Trị Thực Thi") },
+                    icon = { Text("🛡️", fontSize = 18.sp) }
+                )
+            }
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (selectedTab) {
+                0 -> MissionHallScreen(viewModel = missionHallViewModel)
+                1 -> ForegroundDetectorScreen()
             }
         }
     }

@@ -61,6 +61,12 @@ class CoreDataRepositoryImpl(
         taskDao.updateTask(task.copy(isArchived = true))
     }
 
+    override suspend fun deleteTask(taskId: Long) {
+        completionDao.deleteCompletionsForTask(taskId)
+        crossRefDao.deleteByTaskId(taskId)
+        taskDao.deleteTaskById(taskId)
+    }
+
     override suspend fun getTaskById(taskId: Long): TaskEntity? {
         return taskDao.getTaskById(taskId)
     }
@@ -142,5 +148,18 @@ class CoreDataRepositoryImpl(
         return completionDao.getCompletionsForDate(businessDate)
             .filter { it.isCompleted }
             .map { it.taskId }
+    }
+
+    override fun observeCompletedTaskIdsForDate(businessDate: String): Flow<List<Long>> {
+        return completionDao.observeCompletionsForDate(businessDate)
+            .map { list -> list.filter { it.isCompleted }.map { it.taskId } }
+    }
+
+    override suspend fun getDailyCompletionsForDate(businessDate: String): List<DailyTaskCompletionEntity> {
+        return completionDao.getCompletionsForDate(businessDate)
+    }
+
+    override fun observeDailyCompletionsForDate(businessDate: String): Flow<List<DailyTaskCompletionEntity>> {
+        return completionDao.observeCompletionsForDate(businessDate)
     }
 }

@@ -4,6 +4,45 @@ Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc
 
 ---
 
+## [Phase 18] - 2026-09-07: CORE TASK DOMAIN & BASIC MISSION HALL
+### Bản chất giai đoạn:
+- **Hiện thực hóa Checkpoint CP3 (Core Task Domain & Basic Mission Hall Flow) theo Canonical Design V2 (Mục 5 & Mục 8).**
+- **Xây dựng luồng tuần tự hóa chuỗi nhiệm vụ (Sequential Task Chain) tự động advance và reset theo mốc 04:00.**
+- **Tích hợp giao diện Compose Nhiệm Vụ Đường với Material 3 NavigationBar trong `MainActivity.kt`.**
+- **Bảo toàn 100% Frozen Core App Lock và 237 bài test hồi quy cũ.**
+- **OPEN-01 -> OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+### Các nội dung đã thực hiện:
+- **Domain Layer (Core Task Models & UseCases):**
+  - Tạo `Task.kt`, `TaskWithStatus.kt`, `SequentialTaskChain.kt`: Mô hình hóa nhiệm vụ và trạng thái chuỗi tuần tự (`currentTask`, `incompleteTasks`, `completedTasksToday`, `totalActiveTasks`, `completedCountToday`).
+  - Tạo `CreateTaskUseCase.kt`: Kiểm tra tính hợp lệ của tên nhiệm vụ (tự động trim khoảng trắng, từ chối chuỗi rỗng), gọi repository lưu vào Room.
+  - Tạo `GetMissionHallTasksUseCase.kt`: Truy vấn danh sách nhiệm vụ đang hoạt động, lọc theo trạng thái hoàn thành trong Business Date 04:00 của ngày hiện tại, tự động xác định `currentTask` là nhiệm vụ chưa hoàn thành đầu tiên, hỗ trợ cả Flow phản ứng và suspend query.
+  - Tạo `CompleteTaskUseCase.kt`: Ghi nhận hoàn thành nhiệm vụ idempotent cho Business Date 04:00, hỗ trợ quy tắc Canonical: task bắt đầu trước 04:00 hoàn thành sau 04:00 vẫn tính cho chu kỳ ngày cũ.
+  - Tạo `ArchiveTaskUseCase.kt`: Lưu trữ / xóa mềm nhiệm vụ khỏi chuỗi hoạt động.
+- **Data & Repository Layer Expansion:**
+  - Bổ sung vào `CoreDataRepository` và `CoreDataRepositoryImpl`: `deleteTask`, `observeCompletedTaskIdsForDate`, `getDailyCompletionsForDate`, `observeDailyCompletionsForDate`.
+  - Tạo Singleton Providers: `CoreDataRepositoryProvider.kt`, `BusinessDayProviderHolder.kt`.
+- **UI & Presentation Layer:**
+  - Tạo `MissionHallViewModel.kt`: Quản lý `MissionHallUiState` với trạng thái chuỗi `SequentialTaskChain`, loading, dialog nhập liệu, banner thông báo kết quả.
+  - Tạo `MissionHallScreen.kt`:
+    - Nút thêm nhiệm vụ nhỏ gọn ở góc dưới bên phải (Floating Action Button).
+    - Dialog tạo nhiệm vụ tối giản gồm Tên nhiệm vụ và nút Xác nhận.
+    - Card Tiến trình tu luyện hôm nay (`completedCount/totalCount`).
+    - Card Nhiệm vụ đang thực hiện (hiển thị `currentTask`, nút Hoàn thành và nút Xóa).
+    - Danh sách nhiệm vụ chưa hoàn thành của chu kỳ hôm nay.
+    - Danh sách nhiệm vụ đã hoàn thành hôm nay.
+  - Cập nhật `MainActivity.kt`: Tích hợp Material 3 `NavigationBar` gồm 2 tab:
+    - Tab 0: Nhiệm Vụ Đường (`MissionHallScreen`).
+    - Tab 1: Quản Trị Thực Thi (bảo toàn 100% UI App Lock và intent tests).
+- **Kiểm thử & Xác minh Toàn diện:**
+  - Tạo `TaskDomainTest.kt`: 13 test scenarios bao phủ tạo task, validation, completion idempotent, mốc reset 04:00, task vắt qua 04:00, sequential advancement, skip archived task, reset tự nhiên sang ngày mới (PASS 100%).
+  - Tạo `MissionHallViewModelTest.kt`: 6 test scenarios bao phủ trạng thái ban đầu, mở/đóng dialog, validation lỗi, thêm task, hoàn thành task tuần tự, lưu trữ task (PASS 100%).
+  - Tổng số unit test: **256/256 PASS (100% Success Rate)**.
+  - Build APK Debug: `assembleDebug` BUILD SUCCESSFUL.
+  - Xác minh thực tế trên thiết bị thực (vivo iQOO Neo 10 / Android 15 / OriginOS 5): Cài đặt APK qua ADB, khởi động `MainActivity`, mở dialog thêm task, nhập task "LuyenCong", xác nhận hiển thị trong chuỗi tuần tự, bấm "Xong" để hoàn thành, xác minh UI hiển thị "1/1 Hoàn thành", chuyển tab Quản Trị Thực Thi kiểm tra App Lock hoạt động hoàn hảo.
+
+---
+
 ## [Phase 17] - 2026-09-07: CORE DATA ARCHITECTURE & DAILY CYCLE 04:00 ALIGNMENT
 ### Bản chất giai đoạn:
 - **Hiện thực hóa Checkpoint CP5 (Chu kỳ ngày 04:00) theo Canonical Design V2 (Mục 8).**

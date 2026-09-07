@@ -162,5 +162,40 @@ Tất cả các quyết định dưới đây được trích xuất trực ti�
   - Cấu trúc Room Database chỉ là **Nền tảng kỹ thuật đề xuất (Technical Foundation Proposal)** cho Checkpoints CP3, CP5, CP6, không phải schema chính thức đã chốt.
 - **Ranh giới Coexistence (Song song an toàn):**
   - **DataStore hiện tại:** Giữ nguyên 100% cho cấu hình khóa (`target_packages`, `policy_configs`, `daily_limits`, `schedules`, `usage_records`) phục vụ runtime App Lock. Tuyệt đối không xóa bỏ hay di trú mù.
-  - **Room Database đề xuất:** Chuẩn bị sẵn repository abstraction (`CoreDataRepository`) cho việc phát triển các module sản phẩm ở các phase sau.
+  ---
+
+## 7. QUYẾT ĐỊNH KỸ THUẬT & QUẢN TRỊ TRONG PHASE 18 (PHASE 18 CORE TASK DOMAIN & BASIC MISSION HALL)
+
+### 7.1. Hiện Thực Hóa Core Task Domain & Chuỗi Tuần Tự (Sequential Task Chain)
+- **Domain Models:**
+  - `Task`: Mô hình hóa nhiệm vụ tối giản (`id`, `name`, `createdAtWallMillis`, `isArchived`).
+  - `SequentialTaskChain`: Chuỗi nhiệm vụ tuần tự với `currentTask` (nhiệm vụ hiện tại đang cần làm), `incompleteTasks` (danh sách chưa hoàn thành), `completedTasksToday` (danh sách đã hoàn thành hôm nay), `totalActiveTasks`, `completedCountToday`.
+- **Hành vi chuỗi (Canonical Design V2 — Mục 5):**
+  - Nhiệm vụ hiển thị theo thứ tự khởi tạo.
+  - Khi hoàn thành nhiệm vụ hiện tại, hệ thống tự động chuyển sang nhiệm vụ tiếp theo trong chuỗi (`currentTask = incomplete.firstOrNull()`).
+  - Nhiệm vụ đã hoàn thành trong chu kỳ ngày hiện tại lập tức biến khỏi danh sách chưa hoàn thành (`incompleteTasks`).
+  - Nhiệm vụ bị xóa/lưu trữ (`archive`) giữa chừng tự động bị bỏ qua; chuỗi tự động trỏ tới nhiệm vụ hợp lệ kế tiếp.
+  - Khi toàn bộ nhiệm vụ trong ngày hoàn thành: `isAllCompleted = true`, `currentTask = null`.
+
+### 7.2. Tích Hợp Chu Kỳ Reset 04:00 (DEC-02 Integration)
+- **Hoàn thành gắn mốc 04:00:** Sử dụng `BusinessDayProvider` để xác định `businessDate` (YYYY-MM-DD) tại mốc 04:00:00 sáng.
+- **Idempotency:** Hoàn thành nhiều lần trong cùng chu kỳ không tạo bản ghi trùng lặp và không gây lỗi.
+- **Task vắt qua 04:00:** Nhiệm vụ bắt đầu trước 04:00 và hoàn thành sau 04:00 được ghi nhận cho chu kỳ ngày cũ theo đúng quy định tại Canonical Design V2 (Mục 8).
+- **Tự động reset:** Sang chu kỳ mới (sau 04:00 hôm sau), các nhiệm vụ chưa hoàn thành của chu kỳ mới tự động hiển thị lại mà không cần cron job hay background batch mutation.
+
+### 7.3. Tạo Nhiệm Vụ Tối Giản (Minimal Task Creation)
+- **UI:** Nút thêm nhiệm vụ nhỏ gọn (Floating Action Button kích thước gọn) đặt tại góc dưới bên phải màn hình Nhiệm Vụ Đường.
+- **Dialog tối giản:** Gồm ô nhập Tên nhiệm vụ và nút Xác nhận (kèm nút Hủy).
+- **Validation:** Tự động cắt khoảng trắng thừa (`trim()`), từ chối chuỗi rỗng hoặc chỉ chứa khoảng trắng với thông báo lỗi rõ ràng.
+
+### 7.4. Bảo Tồn Nền Tảng App Lock Cũ Qua NavigationBar
+- **Tích hợp giao diện:** Sử dụng Material 3 `NavigationBar` tại `MainActivity.kt`:
+  - **Tab 0:** Nhiệm Vụ Đường (`MissionHallScreen`).
+  - **Tab 1:** Quản Trị Thực Thi (giao diện App Lock và cấu hình policy cũ).
+- **Bảo toàn 100% Frozen Core:** Không thay đổi bất kỳ hành vi hay intent filter nào của App Lock. Bảo vệ toàn bộ 237 bài test hồi quy cũ.
+
+### 7.5. Quản Trị OPEN Items Trong Phase 18
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+- Tuyệt đối không tự ý áp dụng công thức 2/3 (OPEN-01) hay hệ thống điểm thưởng tu vi (OPEN-02).
+- Không thêm các phân hệ Tu Luyện, Tháp Thí Luyện, Thương Thành, Túi Trữ Vật, Khí Linh AI Core, hay audio/visual assets vào mã nguồn.
 

@@ -24,6 +24,7 @@ interface CoreDataRepository {
     // --- Mission Tasks ---
     suspend fun createTask(name: String): Long
     suspend fun archiveTask(taskId: Long)
+    suspend fun deleteTask(taskId: Long)
     suspend fun getTaskById(taskId: Long): TaskEntity?
     suspend fun getAllActiveTasks(): List<TaskEntity>
     fun observeActiveTasks(): Flow<List<TaskEntity>>
@@ -42,4 +43,8 @@ interface CoreDataRepository {
     suspend fun isTaskCompletedOnDate(taskId: Long, businessDate: String): Boolean
     fun observeTaskCompletion(taskId: Long, businessDate: String): Flow<Boolean>
     suspend fun getCompletedTaskIdsForDate(businessDate: String): List<Long>
+    fun observeCompletedTaskIdsForDate(businessDate: String): Flow<List<Long>>
+    suspend fun getDailyCompletionsForDate(businessDate: String): List<com.example.selfdisciplinepoc01.data.entity.DailyTaskCompletionEntity>
+    fun observeDailyCompletionsForDate(businessDate: String): Flow<List<com.example.selfdisciplinepoc01.data.entity.DailyTaskCompletionEntity>>
 }
+

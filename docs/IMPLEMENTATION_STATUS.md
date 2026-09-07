@@ -2,7 +2,7 @@
 
 **Dự án:** Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)  
 **Tài liệu tham chiếu chuẩn:** [`docs/CANONICAL_DESIGN_V2.md`](file:///c:/Code/self-discipline-poc-01/docs/CANONICAL_DESIGN_V2.md)  
-**Ngày kiểm toán:** 04/09/2026 (Phase 16)  
+**Ngày kiểm toán:** 07/09/2026 (Phase 18)  
 
 ### Tập phân loại trạng thái chuẩn:
 - **`DONE`:** Đã hoàn thành 100% cả năng lực kỹ thuật lẫn luồng nghiệp vụ sản phẩm theo Canonical Design. (*Lưu ý: Tuyệt đối không dùng `DONE` nếu mới chỉ có khung kỹ thuật / skeleton*).
@@ -19,8 +19,8 @@
 |:---|:---:|:---|:---|:---|:---|
 | **1. Hệ thống Phong Ấn (App Lock Core)** | **FOUNDATION ONLY** | Bắt sự kiện chuyển app bằng Accessibility, che overlay 0ms bằng `BlockingShieldOverlay`, hiển thị màn hình khóa `LockScreenActivity`, quản lý session, chống stale callback. | Thiếu logic phong ấn app theo Nhiệm Vụ và Bảo Khố; thiếu hiển thị tiến trình chuỗi nhiệm vụ trên màn hình khóa. | Cần có Nhiệm Vụ Đường và Bảo Khố. | **Phase 19 (App Lock & Task Integration)** |
 | **2. Bảo Khố (Vault Core)** | **FOUNDATION ONLY** | `TargetRepositoryImpl` lưu cấu hình khóa qua DataStore; Phase 17 bổ sung `AppEntity`, `AppDao` trong Room đề xuất chuẩn bị cho CP6. | Thiếu UI Bảo Khố phong cách kho item, thiếu cơ chế đổi màu avatar (không dùng icon ổ khóa), thiếu liên kết nghiệp vụ với Task. | Cần UI và nghiệp vụ Bảo Khố hoàn chỉnh. | **Phase 18 (Vault & Mission Hall Foundation)** |
-| **3. Nhiệm Vụ Đường (Mission Hall Core)** | **FOUNDATION ONLY** | Đã xây dựng `TaskEntity`, `TaskDao`, `DailyTaskCompletionEntity`, `CoreDataRepository` (Technical Foundation CP3). | Thiếu UI Nhiệm Vụ Đường, nút thêm task góc dưới phải, form tối giản (Tên + Xác nhận), flow hoàn thành task. | Cần UI và flow hoàn thành nhiệm vụ. | **Phase 18 (Vault & Mission Hall Foundation)** |
-| **4. Quan hệ App ↔ Task (Many-to-Many)** | **FOUNDATION ONLY** | Đã xây dựng `TaskAppCrossRef`, `TaskAppCrossRefDao`, `CoreDataRepository` (Technical Foundation CP6). Hỗ trợ 1 task nhiều app, 1 app nhiều task độc lập, cascade deletion. | Thiếu logic liên kết trên UI và cơ chế kích hoạt phong ấn app khi gắn task. | Cần tích hợp với App Lock và UI Bảo Khố. | **Phase 18 / Phase 19** |
+| **3. Nhiệm Vụ Đường (Mission Hall Core)** | **PARTIAL** | Đã hoàn thành Core Task Domain (`Task`, `SequentialTaskChain`), Room persistence (`TaskDao`, `DailyTaskCompletionDao`), UseCases (`CreateTaskUseCase`, `GetMissionHallTasksUseCase`, `CompleteTaskUseCase`, `ArchiveTaskUseCase`), UI Compose Nhiệm Vụ Đường hoàn chỉnh với nút thêm nhỏ góc dưới phải, dialog tối giản (Tên + Xác nhận, trim whitespace), card tiến trình, card nhiệm vụ hiện tại, danh sách chưa hoàn thành, danh sách đã xong, chuỗi tuần tự advance tự động, mốc reset 04:00 (CP3 Basic Flow). | Chưa liên kết trực tiếp với Bảo Khố (app phong ấn) trên UI; chưa có điểm thưởng tu vi (OPEN-02); chưa có âm thanh/hiệu ứng tiên hiệp. | Cần liên kết với Bảo Khố (CP6) và App Lock. | **Phase 19 (Vault Integration & Task-App Linkage)** |
+| **4. Quan hệ App ↔ Task (Many-to-Many)** | **FOUNDATION ONLY** | Đã xây dựng `TaskAppCrossRef`, `TaskAppCrossRefDao`, `CoreDataRepository` (Technical Foundation CP6). Hỗ trợ 1 task nhiều app, 1 app nhiều task độc lập, cascade deletion. | Thiếu logic liên kết trên UI và cơ chế kích hoạt phong ấn app khi gắn task. | Cần tích hợp với App Lock và UI Bảo Khố. | **Phase 19 (Vault Integration & Task-App Linkage)** |
 | **5. Luồng Mở Khóa (Unlock Rule)** | **OPEN** | `PolicyEngine` chỉ đánh giá theo khung giờ Schedule và Daily Limit phút. | Thiếu cơ chế giải phong ấn theo hoàn thành nhiệm vụ. | **OPEN-01** (Chờ Ký chủ chốt công thức 2/3 nhiệm vụ). | Chờ chốt OPEN-01 |
 | **6. Chu kỳ Ngày & Reset 04:00 (Daily Cycle)** | **DONE** | Đã triển khai `BusinessDayProvider` (04:00:00 boundary), tích hợp `UsageTracker` phân bổ thời lượng qua 04:00, task bắt đầu trước 04:00 thuộc cycle cũ. Ma trận 12 kịch bản PASS 100%. (Đạt CP5). | Không. Đã tuân thủ 100% Canonical Design V2 (Mục 8). | Không. | **Hoàn thành trong Phase 17** |
 | **7. Tu Luyện (Cultivation Core)** | **NOT IMPLEMENTED** | Chưa có dòng code nào trong codebase (0 code). | Thiếu toàn bộ module Tu Luyện rèn luyện mở rộng. | Cần Core Task và Điểm Tu Vi hoạt động ổn định. | **Phase 20 (Cultivation & Progression)** |
@@ -38,10 +38,10 @@
 
 ---
 
-## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 17)
+## TỔNG KẾT BẢNG TRẠNG THÁI (Sau Phase 18)
 - **DONE (Hoàn chỉnh 100% cả kỹ thuật và nghiệp vụ):** **1 phân hệ** (Chu kỳ ngày 04:00 — CP5).
-- **PARTIAL (Có một phần nghiệp vụ):** **0 phân hệ**.
-- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có UI/nghiệp vụ đầy đủ):** **5 phân hệ** (Hệ thống Phong Ấn kỹ thuật, Bảo Khố kỹ thuật, Nhiệm Vụ Đường kỹ thuật, Quan hệ App-Task kỹ thuật, An toàn tầng OS).
+- **PARTIAL (Có một phần nghiệp vụ):** **1 phân hệ** (Nhiệm Vụ Đường — Core Task & Basic Mission Hall Flow CP3).
+- **FOUNDATION ONLY (Nền tảng kỹ thuật vững chắc, chưa có UI/nghiệp vụ đầy đủ):** **4 phân hệ** (Hệ thống Phong Ấn kỹ thuật, Bảo Khố kỹ thuật, Quan hệ App-Task kỹ thuật, An toàn tầng OS).
 - **NOT IMPLEMENTED (Hoàn toàn chưa xây dựng):** **6 phân hệ** (Tu Luyện, Bí Cảnh, Thương Thành, Túi Trữ Vật, Voucher, Khí Linh AI Core).
 - **OPEN (Chờ quyết định chính thức từ Ký chủ):** **6 phân hệ** (Công thức 2/3 nhiệm vụ, Công thức điểm, Tháp Thí Luyện, Lược đồ DB chính thức, Memory Cloud, UI Tokens).
 
