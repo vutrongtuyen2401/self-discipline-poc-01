@@ -2,6 +2,42 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 21] - 2026-09-07: PRE-OPEN-01 AUDIT & GOVERNANCE FREEZE
+### Bản chất giai đoạn:
+- **Thiết lập Baseline Sạch và Đóng Băng Quản Trị Hệ Thống (Governance Freeze) trước khi xem xét quyết định OPEN-01.**
+- **TUYỆT ĐỐI KHÔNG TRIỂN KHAI BẤT KỲ CÔNG THỨC SẢN PHẨM NÀO:** Không công thức 2/3, không rounding, không threshold, không unlock condition, không voucher bypass, không điểm tu vi, không Tu Luyện, không Tháp Thí Luyện, không Thương Thành, không Túi Trữ Vật, không Dynamic Task Generation.
+- **Audit & Hiệu chỉnh Số Thứ Tự OPEN ITEMS (OPEN ITEMS NUMBERING AUDIT):**
+  * Đối chiếu 100% chính xác giữa [`docs/CANONICAL_DESIGN_V2.md`](file:///c:/Code/self-discipline-poc-01/docs/CANONICAL_DESIGN_V2.md) (Mục 28) và [`docs/OPEN_ITEMS.md`](file:///c:/Code/self-discipline-poc-01/docs/OPEN_ITEMS.md).
+  * Phát hiện và khắc phục sai lệch số thứ tự tại dòng 46 của `docs/IMPLEMENTATION_STATUS.md` và `PHASE_20_REPORT.md` (nơi đã gán nhầm Lược đồ DB thành OPEN-04 và chèn Dynamic Task Generation thành OPEN-05).
+  * **Documentation numbering corrected to match CANONICAL_DESIGN_V2.md:**
+    1. `OPEN-01`: Công thức giải phong ấn "2/3 nhiệm vụ" và quy tắc làm tròn cho mọi N.
+    2. `OPEN-02`: Công thức điểm & Phần thưởng cuối cùng (mốc 1đ, 2đ, 3đ...).
+    3. `OPEN-03`: Công thức chi tiết Tháp Thí Luyện (Ngoại lệ Tầng 4).
+    4. `OPEN-04`: Chi tiết kỹ thuật App Lock sau POC (quyền phụ trợ, chống kill trên Android 15/iQOO).
+    5. `OPEN-05`: Lược đồ Cơ sở Dữ liệu chính thức & Chiến lược di chuyển (Migration).
+    6. `OPEN-06`: Chính sách Lưu trữ & Đồng bộ Cloud (Memory/History retention).
+    7. `OPEN-07`: State Machine Giao diện / Animation tokens / Audio tokens (giọng loli).
+- **Kiểm toán Chuỗi Thực Thi App Lock / Mission / Vault (Integration Audit):**
+  * Xác nhận Technical Lock (`PolicyEngine` / `TargetRepository`) vận hành hoàn toàn độc lập với quyền ưu tiên tối thượng (`PolicyDecision.LOCK` không thể bị bypass).
+  * Xác nhận `TaskAppEnforcementAdapter` không chứa bất kỳ công thức nghiệp vụ nào.
+  * Xác nhận ranh giới cứng OPEN-01: Ứng dụng trong Bảo Khố luôn bị phong ấn (`LOCKED_PENDING_BUSINESS_RULE`, `PENDING_OPEN_01`) kể cả khi 100% nhiệm vụ liên kết đã hoàn thành trong ngày.
+  * Xác nhận `evaluate()` và `evaluateSync()` sử dụng chung hàm phân xử `buildEnforcementDetails(...)`, không tạo hai ngữ nghĩa nghiệp vụ khác nhau.
+  * Xác nhận Accessibility Service không truy cập Room DB trên Main Thread; `evaluateSync()` đọc từ in-memory snapshot cache O(1) an toàn tuyệt đối.
+  * Xác nhận snapshot cache áp dụng nguyên tắc an toàn đóng (fail-safe closed): Mọi app trong Vault mặc định bị khóa, không thể tạo stale state gây leak mở khóa ngoài ý muốn.
+  * Xác nhận các tác vụ archived/deleted được loại trừ chính xác khỏi active tasks theo đúng chuẩn Canonical.
+  * Xác nhận quan hệ Many-to-Many Task ↔ App trong `TaskAppCrossRef` được giữ nguyên vẹn.
+  * Xác nhận chu kỳ ngày 04:00:00 (`BusinessDayProvider`) không bị ảnh hưởng.
+- **Xác nhận Thẩm Quyền Quản Trị (Governance Check):**
+  * Nguyên tắc tối cao: `CANONICAL > DESIGN DECISIONS > IMPLEMENTATION`.
+  * Mã nguồn và Unit Tests không được coi là nguồn sự thật thay cho Canonical.
+  * Khẳng định: **"No product decision was invented."**
+- **Xác định Ranh Giới Cơ Sở Dữ Liệu (Database Boundary):**
+  * Không thay đổi schema Room DB, giữ nguyên `version = 1`, không migration, không thêm entity.
+  * Ghi nhận DataStore Preferences là Technical Foundation phục vụ POC App Lock; Room Database là đề xuất kỹ thuật cho CP3/CP4/CP5/CP6 (chưa phải official schema theo OPEN-05).
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+---
+
 ## [Phase 20] - 2026-09-07: APP LOCK INTEGRATION DESIGN
 ### Bản chất giai đoạn:
 - **Thiết kế và triển khai tầng tích hợp giữa Mission Domain + Vault Domain và App Lock Core.**

@@ -225,10 +225,11 @@ Tuân thủ nghiêm ngặt nguyên tắc quản trị thiết kế, toàn bộ 7
 1. **OPEN-01:** Công thức giải phong ấn dựa trên hoàn thành 2/3 nhiệm vụ (Chờ Ký chủ chốt tỷ lệ, rounding và các trường hợp ngoại lệ).
 2. **OPEN-02:** Công thức điểm thưởng tu vi từ rèn luyện tự kỷ luật (Chờ Ký chủ phê duyệt).
 3. **OPEN-03:** Công thức leo Tháp Thí Luyện và ngoại lệ tầng 4 (Chờ Ký chủ phê duyệt).
-4. **OPEN-04:** Lược đồ cơ sở dữ liệu quan hệ chính thức toàn diện.
-5. **OPEN-05:** Cơ chế Dynamic Task Generation của Khí Linh AI.
-6. **OPEN-06:** Kiến trúc bộ nhớ 5 tầng và chính sách lưu trữ / đồng bộ Cloud.
-7. **OPEN-07:** Hệ thống hoạt họa, lồng tiếng nữ loli và nhạc nền tiên hiệp chính thức.
+4. **OPEN-04:** Chi tiết kỹ thuật App Lock sau POC (quyền hệ thống phụ trợ, cơ chế chống kill tiến trình trên Android 15 / iQOO Neo 10).
+5. **OPEN-05:** Lược đồ cơ sở dữ liệu quan hệ chính thức toàn diện và chiến lược di chuyển (Migration).
+6. **OPEN-06:** Kiến trúc bộ nhớ 5 tầng và chính sách lưu trữ / đồng bộ Cloud (Memory/History).
+7. **OPEN-07:** Hệ thống hoạt họa, lồng tiếng nữ loli và nhạc nền tiên hiệp chính thức (UI/Animation/Audio Tokens).
+*(Documentation numbering corrected to match CANONICAL_DESIGN_V2.md)*
 
 ---
 
