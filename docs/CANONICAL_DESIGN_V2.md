@@ -86,7 +86,30 @@ Danh sách app dùng làm “Phần thưởng” của nhiệm vụ chỉ lấy 
 # 7. PHONG ẤN APP VÀ QUY TẮC MỞ KHÓA
 
 Thiết kế nghiệp vụ cốt lõi: app được liên kết với nhiệm vụ thì bị phong ấn; khi người dùng mở app, hệ thống kiểm tra nhiệm vụ; sau khi đạt điều kiện, app được mở.
-Một quyết định đã được đưa ra: cơ chế “hoàn thành 2/3 nhiệm vụ” được dùng làm hướng mở khóa. Tuy nhiên, cách tính chính xác cho từng số lượng nhiệm vụ (đặc biệt 1, 2, 3, 4… nhiệm vụ), làm tròn như thế nào, và các trường hợp đặc biệt chưa được đặc tả thành công thức cuối cùng trong cuộc trao đổi. Đây là OPEN và phải được chốt trước khi khóa implementation.
+
+### Quyết định sản phẩm chính thức cho OPEN-01 (Task-based Unlock — CLOSED):
+- Với một app thuộc Bảo Khố có $N$ nhiệm vụ đang có hiệu lực (active, không bị lưu trữ `isArchived`, không bị xóa) được liên kết trong chu kỳ nghiệp vụ hiện tại (reset mốc `04:00:00` sáng):
+  $$\text{requiredCompletedTasks} = \left\lceil \frac{2 \times N}{3} \right\rceil = \frac{2 \times N + 2}{3}$$
+  (Hiện thực hóa hoàn toàn bằng số học nguyên thuần túy, tuyệt đối không dùng số thực / floating point).
+- **Điều kiện mở khóa:** $\text{completedTasks} \ge \text{requiredCompletedTasks} \quad \text{VÀ} \quad N > 0 \implies \text{ALLOW}$. Nếu $N = 0$ hoặc chưa đạt đủ số lượng yêu cầu $\implies \text{LOCK}$.
+- **Bảng kiểm chứng chuẩn hóa ($N = 0 \dots 10$):**
+  * $N = 0 \rightarrow 0$ (Không mở khóa, bắt buộc $N > 0$) $\rightarrow$ `LOCK`.
+  * $N = 1 \rightarrow 1$ (1/1 $\rightarrow$ `ALLOW`).
+  * $N = 2 \rightarrow 2$ (2/2 $\rightarrow$ `ALLOW`).
+  * $N = 3 \rightarrow 2$ (2/3 $\rightarrow$ `ALLOW`).
+  * $N = 4 \rightarrow 3$ (3/4 $\rightarrow$ `ALLOW`).
+  * $N = 5 \rightarrow 4$ (4/5 $\rightarrow$ `ALLOW`).
+  * $N = 6 \rightarrow 4$ (4/6 $\rightarrow$ `ALLOW`).
+  * $N = 7 \rightarrow 5$ (5/7 $\rightarrow$ `ALLOW`).
+  * $N = 8 \rightarrow 6$ (6/8 $\rightarrow$ `ALLOW`).
+  * $N = 9 \rightarrow 6$ (6/9 $\rightarrow$ `ALLOW`).
+  * $N = 10 \rightarrow 7$ (7/10 $\rightarrow$ `ALLOW`).
+
+### Quyết định sản phẩm chính thức cho OPEN-04 (Technical App Lock — CLOSED):
+- Technical App Lock (Lịch trình Schedule & Giới hạn sử dụng Daily Limit) chính thức được công nhận là **Hành vi Sản phẩm Có Phạm vi Giới hạn (Scoped Product Behavior)**, đóng vai trò là **"Hàng Rào Bảo Vệ Cứng / Chính Sách Cấm Tuyệt Đối" (Hard Ceiling Guardrails / Absolute Ban Policy)**.
+- **Thứ tự ưu tiên thực thi bất biến:** Technical Lock luôn có thẩm quyền tối thượng. Nếu Technical Lock cấm (`LOCK`), ứng dụng bị phong ấn ngay lập tức (`LOCKED_BY_POLICY`) mà không một tiến trình nhiệm vụ hay voucher nào có thể bypass. Chỉ khi Technical Lock cho phép (`ALLOW`), hệ thống mới đánh giá tiếp điều kiện mở khóa nghiệp vụ của Bảo Khố và Nhiệm Vụ Đường (OPEN-01).
+- **Nền tảng thực thi kỹ thuật được phê duyệt:** Accessibility Service (`TYPE_WINDOW_STATE_CHANGED`) + Window Overlay (`TYPE_APPLICATION_OVERLAY`) + `LockScreenActivity`. Ranh giới quyền Android giới hạn ở `BIND_ACCESSIBILITY_SERVICE` và `SYSTEM_ALERT_WINDOW`.
+
 
 # 8. CHU KỲ NGÀY VÀ RESET 04:00
 
@@ -338,13 +361,12 @@ Không hỏi lại intent khi intent đã rõ; chỉ hỏi khi thông tin không
 
 
 
-# 25. POC-01 — ANDROID APP DETECTION
+# 25. POC-01 — ANDROID APP DETECTION (ĐÃ HOÀN THÀNH & CHỐT NỀN TẢNG)
 
-Mục tiêu: kiểm chứng trên Android 15 + iQOO Neo 10 khả năng nhận biết người dùng chuyển/mở một app khác.
-Accessibility Service là ứng viên kỹ thuật để kiểm chứng, chưa được coi là quyết định implementation cuối trước khi PoC thành công.
-POC không chứa nhiệm vụ, Bảo Khố, Tu Luyện, Thương Thành hay AI.
-Chỉ khi POC xác nhận khả thi và hành vi đủ ổn định mới chốt nền tảng cho App Lock Core.
-Bài học: rủi ro kỹ thuật lớn phải được kiểm chứng sớm trước khi xây cả hệ thống.
+Mục tiêu ban đầu: kiểm chứng trên Android 15 + iQOO Neo 10 khả năng nhận biết người dùng chuyển/mở một app khác.
+Kết quả kiểm chứng: Đã hoàn thành xuất sắc và chứng minh độ ổn định tuyệt đối trên Android 15 / OriginOS 5 (Phase 05–15, Phase 24 trên máy thật).
+Chính thức chốt nền tảng (Quyết định OPEN-04): Kiến trúc Dịch vụ Trợ năng (Accessibility Service với sự kiện `TYPE_WINDOW_STATE_CHANGED`) kết hợp Lớp chắn cửa sổ (Window Overlay `TYPE_APPLICATION_OVERLAY`) và Màn hình chặn an toàn (`LockScreenActivity`) chính thức được phê duyệt làm Nền tảng Kỹ thuật Cốt lõi (Core Enforcement Engine) của Hệ Thống Phong Ấn. Giới hạn quyền hệ thống ở 2 quyền tiêu chuẩn Android (`BIND_ACCESSIBILITY_SERVICE` và `SYSTEM_ALERT_WINDOW`), không cần quyền DeviceAdmin.
+Bài học: rủi ro kỹ thuật lớn đã được kiểm chứng sớm và chuyển hóa thành công thành Core Foundation.
 
 # 26. QUY TRÌNH VIBE CODING ĐÃ CHỐT
 
@@ -375,15 +397,20 @@ Không giao AI “xây toàn bộ app” mà thiếu đặc tả/checkpoint.
 
 
 
-# 28. CÁC ĐIỂM ĐÃ TỪNG THẢO LUẬN NHƯNG CHƯA ĐỦ CHI TIẾT ĐỂ KHÓA CODE
+# 28. QUẢN LÝ CÁC MỤC THIẾT KẾ MỞ (CANONICAL OPEN ITEMS MANAGEMENT)
 
-OPEN-01: Công thức chính xác của “2/3 nhiệm vụ” cho mọi số lượng nhiệm vụ và cách làm tròn.
-OPEN-02: Công thức điểm/mốc cuối cùng trong hệ thống phần thưởng nếu áp dụng quy tắc mốc “1d, 2d, 3…” đã từng nêu nhưng chưa mô tả đủ rõ thành công thức.
-OPEN-03: Công thức chi tiết của Tháp Thí Luyện trước/sau ngoại lệ tầng 4.
-OPEN-04: Chi tiết kỹ thuật App Lock sau POC-01; cần xác định quyền/API/hành vi Android 15/iQOO thực tế.
-OPEN-05: Chi tiết schema Database chính thức và migration strategy.
-OPEN-06: Chính sách retention/đồng bộ Cloud của Memory và History.
-OPEN-07: Các trạng thái UI/animation/audio cần được biến thành state machine/tokens cụ thể trước khi polish.
+Các vấn đề từng thảo luận trong quá trình thiết kế được phân loại và quản trị nghiêm ngặt theo bảng dưới đây:
+
+| Mã ID | Tên Vấn Đề Chuẩn (Canonical Item) | Trạng Thái Quản Trị | Nội Dung Quyết Định / Hiện Trạng Kỹ Thuật | Ràng Buộc Bắt Buộc |
+| :---: | :--- | :---: | :--- | :--- |
+| **OPEN-01** | Công thức giải phong ấn "2/3 nhiệm vụ" (Exact task unlock formula `ceil(2N/3)`) | **CLOSED** | Đã chốt chính thức tại Phase 23 & validate tại Phase 24: $\text{requiredCompletedTasks} = \lceil 2N/3 \rceil = (2N + 2)/3$ bằng số học nguyên, điều kiện $N > 0$ và $\text{completed} \ge \text{required}$. Reset theo chu kỳ 04:00. | Đã áp dụng chính thức vào `TaskUnlockPolicy` và `TaskAppEnforcementAdapter`. |
+| **OPEN-02** | Công thức điểm & Phần thưởng cuối cùng (Point / Reward final formula) | **OPEN** | Công thức điểm/mốc cuối cùng trong hệ thống phần thưởng nếu áp dụng quy tắc mốc “1đ, 2đ, 3đ…”. Hiện tại chưa có code điểm tu vi (0 code). | **TUYỆT ĐỐI KHÔNG** tự ý tạo hệ thống điểm tu vi, combo chuỗi ngày hay trừ điểm. Chờ Ký chủ phê duyệt. |
+| **OPEN-03** | Công thức chi tiết Tháp Thí Luyện (Ngoại lệ Tầng 4) (Tower detailed formula / Floor 4 exception) | **OPEN** | Quy tắc nhảy bậc chính xác ở Tầng 4 và công thức sinh tầng tự động chưa được chốt chi tiết. Hiện tại chưa có code Tháp Thí Luyện (0 code). | **TUYỆT ĐỐI KHÔNG** tự suy diễn logic độ khó tầng 4 hoặc thuật toán sinh tầng. Giữ nguyên mô hình mở. |
+| **OPEN-04** | Quyết định sản phẩm kỹ thuật App Lock sau POC (Technical App Lock product decision) | **CLOSED** | Đã chốt chính thức tại Phase 26: Technical App Lock (Schedule & Daily Limit) là **Scoped Product Behavior (Hàng rào Cấm Tuyệt Đối - Hard Ceiling Guardrails)** có độ ưu tiên cao nhất, không thể bị bypass bởi Business Unlock. Nền tảng thực thi: Accessibility Service + Window Overlay + LockScreenActivity. | Đã áp dụng chính thức vào `TaskAppEnforcementAdapter` và `AppDetectorAccessibilityService`. |
+| **OPEN-05** | Lược đồ Cơ sở Dữ liệu chính thức & Chiến lược Di chuyển (Official DB schema & migration strategy) | **OPEN** | Chi tiết schema cơ sở dữ liệu quan hệ chính thức và chiến lược migration từ DataStore sang SQLite/Room. Room DB hiện tại chỉ là Technical Foundation phục vụ POC/Core Checkpoint. | Room DB hiện tại là Nền tảng kỹ thuật phục vụ Checkpoint CP3–CP6, **KHÔNG ĐƯỢC ĐÓNG OPEN-05**. Chờ Ký chủ phê duyệt schema chính thức. |
+| **OPEN-06** | Chính sách Lưu trữ & Đồng bộ Cloud (Memory / Cloud retention & sync policy) | **OPEN** | Chính sách lưu trữ (retention policy), thời hạn dọn dẹp lịch sử, ranh giới dữ liệu nào đồng bộ lên Cloud và dữ liệu nào giữ On-Device. **Hiện trạng:** Code hiện tại không có Cloud sync, chẩn đoán kỹ thuật chỉ lưu in-memory ring buffer (200 sự kiện), không có truyền dữ liệu ra ngoài. **Quyết định sản phẩm:** `OPEN`, kiến trúc sản phẩm dài hạn vẫn bảo lưu hướng hybrid Cloud + On-device theo Mục 30. | Tạm thời chỉ giữ log chẩn đoán cục bộ trong RAM, không triển khai Cloud sync hay tự ý đóng băng kiến trúc thành "vĩnh viễn 100% on-device" khi Ký chủ chưa chốt chính sách retention. |
+| **OPEN-07** | State Machine Giao diện / Animation / Audio Tokens (UI state machine / animation / audio tokens) | **OPEN** | Các trạng thái UI, hiệu ứng phát sáng item, hoạt ảnh chuyển động điểm/item, và tệp âm thanh (giọng nữ loli) cần được chuẩn hóa thành State Machine và bảng Audio Tokens cụ thể. Hiện tại mới có Cultivation UI Design System Foundation. | Không viết code hiệu ứng đồ họa giả lập hay nhúng voice assets khi chưa có bộ token và tài nguyên chính thức từ Ký chủ. |
+
 
 # 29. DESIGN AUDIT — CÁCH XỬ LÝ CODE ĐANG ĐI CHỆCH
 

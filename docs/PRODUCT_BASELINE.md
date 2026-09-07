@@ -93,7 +93,7 @@ Các hạng mục dưới đây bắt buộc phải duy trì trạng thái **`OP
 | **OPEN-02** | Công thức điểm Tu Luyện & Phần thưởng cuối cùng (Point / Reward final formula) | **OPEN** | Không tự tạo hệ thống điểm tu vi, combo ngày hay trừ điểm. |
 | **OPEN-03** | Công thức chi tiết Tháp Thí Luyện & Ngoại lệ Tầng 4 (Tower detailed formula / Floor 4 exception) | **OPEN** | Không tự viết thuật toán sinh tầng hay logic độ khó tầng 4. |
 | **OPEN-05** | Lược đồ DB chính thức & Chiến lược Di chuyển (Official DB schema & migration strategy) | **OPEN** | Room DB hiện tại chỉ là Nền tảng Kỹ thuật (Technical Foundation) phục vụ POC, chưa phải schema chính thức đã chốt. |
-| **OPEN-06** | Chính sách Lưu trữ & Đồng bộ Cloud (Memory / Cloud retention & sync policy) | **OPEN** | Giữ 100% On-device, không tự ý viết Cloud sync hay gửi dữ liệu ra ngoài. |
+| **OPEN-06** | Chính sách Lưu trữ & Đồng bộ Cloud (Memory / Cloud retention & sync policy) | **OPEN** | Hiện trạng code không có Cloud sync, log chỉ lưu local in-memory, không gửi dữ liệu ra ngoài; Quyết định sản phẩm vẫn OPEN, bảo lưu hướng kiến trúc hybrid Cloud + On-device theo Canonical Design. |
 | **OPEN-07** | State Machine Giao diện / Animation / Audio Tokens (UI state machine / animation / audio tokens) | **OPEN** | Không tự ý nhúng voice assets giả lập hoặc tự định nghĩa animation state machine ngoài Foundation hiện có. |
 
 ---

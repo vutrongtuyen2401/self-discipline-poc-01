@@ -107,7 +107,7 @@ reason = LOCKED_BY_POLICY  │   TẦNG 2: BUSINESS UNLOCK │ (Bảo Khố & Nh
 | **OPEN-03** | Tower detailed formula / Floor 4 exception | **OPEN** | Tuyệt đối không tự ý triển khai. |
 | **OPEN-04** | Technical App Lock product decision | **CLOSED** | **Chính thức đóng tại Phase 26 (Scoped Product Behavior & Core Engine).** |
 | **OPEN-05** | Official DB schema & migration strategy | **OPEN** | Room DB hiện tại chỉ là Technical Foundation. |
-| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Giữ 100% On-device, không có Cloud sync. |
+| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Hiện trạng: no cloud sync, log lưu in-memory. Quyết định sản phẩm: OPEN (bảo lưu hướng hybrid). |
 | **OPEN-07** | UI state machine / animation / audio tokens | **OPEN** | Chưa có audio assets và state machine chính thức. |
 
 ---

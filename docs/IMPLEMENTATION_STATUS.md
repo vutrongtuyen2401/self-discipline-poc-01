@@ -34,7 +34,7 @@
 | **15. Kiến trúc Trí Nhớ (Memory 5 tầng)** | **OPEN** | Chỉ có in-memory ring buffer chẩn đoán kỹ thuật (`DiagnosticLogger`). | Thiếu 5 tầng trí nhớ: History, Memory, Temporary Rule, Official Rule, Exception. | **OPEN-06** (Chờ chính sách retention và đồng bộ Cloud). | Chờ chốt OPEN-06 |
 | **16. An toàn & Phân quyền (Safety & Scope)** | **FOUNDATION ONLY** | Đã kiểm soát an toàn quyền Android OS (Accessibility, Overlay), an toàn vòng đời (screen OFF/ON, safe back/home). | Thiếu cơ chế giới hạn quyền tự chủ của AI Khí Linh và Confirmation Scope (Q1). | Cần AI Core Engine. | **Phase 22 (Khí Linh AI Core)** |
 | **17. Giao diện Tiên Hiệp & Multimedia** | **FOUNDATION ONLY** | Đã thiết lập hoàn chỉnh **Cultivation UI Design System Foundation** (Phase 19.5): Hệ thống token ngữ nghĩa (Colors, Typography, Shapes, Spacing, Elevation), Animation primitives, Core components (`CultivationCard`, `CultivationButton`, `CultivationDialog`, `AsyncAppIcon`, `AppItemGridCard`, `AppItemSelectableRow`, `TaskCard`, `ProgressCard`, `CultivationGrid`, `ItemCard`). Giao diện Bảo Khố và Nhiệm Vụ Đường đã nâng cấp toàn diện theo thẩm mỹ Tiên Hiệp (Huyền Mặc, Thanh Ngọc, Kim Tinh, Chu Sa). | Thiếu tài nguyên âm thanh/hiệu ứng lồng tiếng nữ loli và nhạc nền tiên hiệp. | **OPEN-07** (Chờ State Machine, Tokens và Audio assets chính thức). | Tiếp tục hoàn thiện trong các phase tiếp theo |
-| **18. Kiến trúc Cloud + On-device** | **OPEN** | Code hiện tại 100% on-device, không có network call. | Thiếu AI Router kết hợp Cloud + On-Device và cơ chế đồng bộ dữ liệu. | **OPEN-06** (Chờ chính sách Cloud). | Chờ chốt OPEN-06 |
+| **18. Kiến trúc Cloud + On-device** | **OPEN** | Hiện trạng: no cloud sync, chẩn đoán kỹ thuật chỉ lưu in-memory ring buffer, không truyền dữ liệu ra ngoài. | Thiếu AI Router kết hợp Cloud + On-Device và cơ chế đồng bộ dữ liệu. | **OPEN-06** (Chờ chính sách Cloud; bảo lưu định hướng hybrid). | Chờ chốt OPEN-06 |
 
 ---
 
@@ -49,7 +49,7 @@
   * **OPEN-03:** **OPEN** (Tower detailed formula / Floor 4 exception).
   * **OPEN-04:** **CLOSED** (Technical App Lock product decision — đã chính thức đóng ở Phase 26: Scoped Product Behavior / Hard Ceiling Guardrail).
   * **OPEN-05:** **OPEN** (Official DB schema & migration strategy — Room DB hiện tại chỉ là Technical Foundation).
-  * **OPEN-06:** **OPEN** (Memory / Cloud retention & sync policy).
+  * **OPEN-06:** **OPEN** (Memory / Cloud retention & sync policy — Hiện trạng: no cloud sync, log local in-memory; Quyết định sản phẩm: OPEN, bảo lưu định hướng hybrid Cloud + On-device).
   * **OPEN-07:** **OPEN** (UI state machine / animation / audio tokens).
 
 > **KẾT LUẬN QUẢN TRỊ (PHASE 26):**  

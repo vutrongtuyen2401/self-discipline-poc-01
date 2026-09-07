@@ -101,7 +101,7 @@ Bảng quản trị chuẩn theo Canonical Design V2 (Mục 28):
 | **OPEN-03** | Tower detailed formula / Floor 4 exception | **OPEN** | Tuyệt đối không tự ý triển khai Tháp Thí Luyện. |
 | **OPEN-04** | Technical App Lock product decision | **OPEN** | Chưa có quyết định sản phẩm cuối cùng sau POC. |
 | **OPEN-05** | Official DB schema & migration strategy | **OPEN** | Room DB hiện tại chỉ là Technical Foundation. |
-| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Giữ 100% on-device, không có Cloud sync. |
+| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Hiện trạng: no cloud sync, log local in-memory. Quyết định sản phẩm: OPEN (bảo lưu hướng hybrid). |
 | **OPEN-07** | UI state machine / animation / audio tokens | **OPEN** | Chưa có bộ audio assets và state machine chính thức. |
 
 ---

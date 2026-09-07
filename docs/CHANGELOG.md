@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 26.1] - 2026-09-07: CANONICAL SYNCHRONIZATION & GOVERNANCE REPAIR
+
+> [!IMPORTANT]
+> **Đồng bộ Tối cao Canonical Design V2 & Khắc phục Sai lệch Quản trị:**
+> - **CANONICAL DESIGN V2 ĐÃ ĐƯỢC ĐỒNG BỘ:** Cập nhật Mục 7 (Mục tiêu 2/3 nhiệm vụ, OPEN-01 CLOSED, công thức $\lceil 2N/3 \rceil$ và bảng kiểm chứng), Mục 25 (POC-01 đã kiểm chứng thành công và phê duyệt nền tảng Accessibility + Overlay + LockScreen làm Core Enforcement Engine), Mục 28 (Bảng Canonical Mapping chuẩn hóa).
+> - **QUẢN TRỊ OPEN ITEMS:**
+>   * **OPEN-01:** **CLOSED** (Exact task unlock formula `ceil(2N/3)`).
+>   * **OPEN-04:** **CLOSED** (Technical App Lock product decision: Scoped Product Behavior / Hard Ceiling Guardrail).
+>   * **OPEN-02, OPEN-03, OPEN-05, OPEN-06, OPEN-07:** **TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+> - **QUAN TRỌNG VỀ OPEN-06:** Không biến OPEN-06 thành quyết định "100% on-device" hay "cấm vĩnh viễn Cloud sync". Phân định rõ ràng: Hiện trạng code chưa có Cloud sync (chẩn đoán kỹ thuật chỉ lưu in-memory ring buffer 200 sự kiện); Quyết định sản phẩm vẫn **OPEN**, bảo lưu hướng kiến trúc dài hạn hybrid Cloud + On-device theo Canonical Design V2 (Mục 30).
+> - **BẢO TỒN MÃ NGUỒN RUNTIME:** 0 dòng code runtime bị thay đổi.
+
 ## [Phase 26] - 2026-09-07: TECHNICAL APP LOCK PRODUCT DECISION (OPEN-04)
 
 > [!IMPORTANT]

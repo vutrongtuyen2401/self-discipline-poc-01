@@ -375,9 +375,9 @@ required = (2 * N + 2) / 3
 | **OPEN-01** | Exact task unlock formula `ceil(2N/3)` | **CLOSED** | Đã quyết định chính thức (Phase 23) và kiểm chứng toàn diện (Phase 24). |
 | **OPEN-02** | Point / Reward final formula | **OPEN** | Tuyệt đối không tự ý triển khai hệ thống điểm/thưởng. |
 | **OPEN-03** | Tower detailed formula / Floor 4 exception | **OPEN** | Tuyệt đối không tự ý triển khai Tháp Thí Luyện. |
-| **OPEN-04** | Technical App Lock product decision | **OPEN** | Hạ tầng kỹ thuật hiện có chỉ là Technical Foundation, chưa phải quyết định sản phẩm cuối cùng. |
+| **OPEN-04** | Technical App Lock product decision | **CLOSED** *(Đã chốt tại Phase 26)* | Đã chốt chính thức ở Phase 26: Scoped Product Behavior / Hard Ceiling Guardrail (xem chi tiết Mục 12). |
 | **OPEN-05** | Official DB schema & migration strategy | **OPEN** | Room DB hiện tại chỉ phục vụ POC/Checkpoint, schema chính thức và migration strategy vẫn OPEN. |
-| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Tuyệt đối không tự ý triển khai Cloud sync hay retention policy. |
+| **OPEN-06** | Memory / Cloud retention & sync policy | **OPEN** | Hiện trạng: no cloud sync, log lưu in-memory. Quyết định sản phẩm: OPEN, bảo lưu định hướng hybrid Cloud + On-device. |
 | **OPEN-07** | UI state machine / animation / audio tokens | **OPEN** | UI Tokens hiện có chỉ là Foundation, audio/voice assets và state machine mở rộng vẫn OPEN. |
 
 ### 11.2. Đóng Băng Ranh Giới Sản Phẩm (Product Baseline Freeze)
@@ -389,7 +389,7 @@ required = (2 * N + 2) / 3
    - Chu kỳ ngày nghiệp vụ: Reset mốc `04:00:00` hàng ngày.
    - Độ ưu tiên: Technical App Lock luôn cấm tuyệt đối nếu kích hoạt.
 2. **Phân định rạch ròi:** Nền tảng kỹ thuật (Accessibility, Room DB proposal, Snapshot Cache, Cultivation UI Foundation) không tự động biến thành Quyết định Sản phẩm (Product Decision).
-3. **OPEN-02..07 bất biến:** Giữ nguyên trạng thái `OPEN` cho đến khi có quyết định bằng văn bản từ Ký chủ.
+3. **OPEN-02, 03, 05, 06, 07 bất biến:** Giữ nguyên trạng thái `OPEN` cho đến khi có quyết định bằng văn bản từ Ký chủ (OPEN-01 đã CLOSED ở Phase 23, OPEN-04 đã CLOSED ở Phase 26).
 
 ---
 

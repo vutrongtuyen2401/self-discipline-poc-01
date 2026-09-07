@@ -81,7 +81,7 @@ Quy chuẩn phân loại:
 | **31. Confirmation scope** | **THIẾU** | Không có cơ chế confirmation scope. | Thiếu logic đánh giá lại confirmation khi phát sinh hành động mới ngoài phạm vi. | Triển khai theo Q1. |
 | **33. Cultivation/Xianxia UX** | **ĐÚNG** *(Foundation)* | `ui/design/*`, `VaultScreen.kt`, `MissionHallScreen.kt`, `MainActivity.kt`. | Đã hoàn thành **Cultivation UI Design System Foundation** (Phase 19.5): Hệ thống Semantic Tokens, Reusable Components, xưng hô Ký chủ, bảng thông cáo ngọc giản, ô app túi đồ không icon ổ khóa, thanh năng lượng linh lực. | Tiếp tục áp dụng cho màn hình khóa và các phân hệ mở rộng. |
 | **34. Animation/audio state** | **PARTIAL** | `CultivationAnimation.kt` (nhịp thở linh lực, pressScaleEffect, animateProgress). | Đã tách bạch hoàn toàn Presentation Animation primitives với Business State. Còn thiếu voice loli, hiệu ứng âm thanh tiên hiệp (phụ thuộc **OPEN-07**). | Chờ Ký chủ chốt State Machine và Audio assets chính thức. |
-| **35. Cloud + On-device** | **THIẾU** | Code hiện tại 100% on-device, không có network call. Phụ thuộc **OPEN-06**. | Thiếu kiến trúc AI Router kết hợp Cloud + On-Device và cơ chế đồng bộ hóa. | Chờ Ký chủ định hướng chính sách Cloud. |
+| **35. Cloud + On-device** | **THIẾU** | Hiện trạng: no cloud sync, chẩn đoán kỹ thuật chỉ lưu local in-memory. Phụ thuộc **OPEN-06**. | Thiếu kiến trúc AI Router kết hợp Cloud + On-Device và cơ chế đồng bộ hóa. | Chờ Ký chủ định hướng chính sách Cloud (bảo lưu định hướng hybrid dài hạn). |
 
 ---
 
@@ -195,9 +195,9 @@ Tình trạng các mục OPEN trong [`docs/OPEN_ITEMS.md`](file:///c:/Code/self-
 1. **OPEN-01:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Đã ký duyệt Quyết định Sản phẩm và hiện thực hóa ở Phase 23 (`TaskUnlockPolicy`).
 2. **OPEN-02:** **OPEN** — Công thức điểm/thưởng/combo chuỗi ngày.
 3. **OPEN-03:** **OPEN** — Công thức Tháp Thí Luyện và ngoại lệ Tầng 4.
-4. **OPEN-04:** **OPEN** — Chi tiết kỹ thuật App Lock sau POC (chính sách quyền phụ trợ trên Android 15).
+4. **OPEN-04:** **CHÍNH THỨC ĐÓNG (CLOSED)** — Quyết định sản phẩm tại Phase 26: Scoped Product Behavior / Hard Ceiling Guardrail và Core Enforcement Engine.
 5. **OPEN-05:** **OPEN** — Lược đồ Room DB chính thức và chiến lược di chuyển từ DataStore.
-6. **OPEN-06:** **OPEN** — Chính sách retention và đồng bộ Cloud của Memory/History.
+6. **OPEN-06:** **OPEN** — Chính sách retention và đồng bộ Cloud của Memory/History (Hiện trạng: local in-memory, không cloud sync; Quyết định sản phẩm: OPEN, bảo lưu định hướng hybrid).
 7. **OPEN-07:** **OPEN** — State Machine giao diện, Animation tokens và Audio assets (giọng loli).
 
 ---
