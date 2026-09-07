@@ -145,12 +145,15 @@ fun MainAppScreen() {
     val repository = remember { CoreDataRepositoryProvider.getRepository(context) }
     val businessDayProvider = remember { BusinessDayProviderHolder.instance }
     val discoveryService = remember { InstalledAppDiscoveryServiceImpl(context) }
+    val enforcementAdapter = remember {
+        com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(context)
+    }
     val missionHallViewModel = remember {
-        MissionHallViewModel.provideFactory(repository, businessDayProvider)
+        MissionHallViewModel.provideFactory(repository, businessDayProvider, enforcementAdapter)
             .create(MissionHallViewModel::class.java)
     }
     val vaultViewModel = remember {
-        VaultViewModel.provideFactory(repository, discoveryService)
+        VaultViewModel.provideFactory(repository, discoveryService, enforcementAdapter)
             .create(VaultViewModel::class.java)
     }
 
@@ -181,7 +184,10 @@ fun MainAppScreen() {
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick = {
+                        selectedTab = 1
+                        vaultViewModel.refreshEnforcement()
+                    },
                     colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
                         selectedIconColor = cultivationColors.spiritTeal,
                         selectedTextColor = cultivationColors.spiritTeal,

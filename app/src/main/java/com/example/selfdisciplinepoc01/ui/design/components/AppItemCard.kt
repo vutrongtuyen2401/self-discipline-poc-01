@@ -22,14 +22,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import com.example.selfdisciplinepoc01.domain.enforcement.AppEnforcementDetails
+import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementReason
 import com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme
+
+private data class EnforcementBadgeConfig(
+    val text: String,
+    val backgroundColor: Color,
+    val textColor: Color,
+    val borderColor: Color?
+)
 
 /**
  * Ô ứng dụng Bảo Khố dạng Grid phong cách túi đồ tu tiên (AppItemCard).
  * Kế thừa pattern ô item (Item Cell) từ eOr và NeoMud:
  * - Hiển thị Icon thật của ứng dụng Android qua [AsyncAppIcon].
  * - Tên ứng dụng thanh thoát, cắt ngắn nếu dài.
- * - Nhãn số lượng nhiệm vụ liên kết (badge).
+ * - Nhãn trạng thái thực thi nhận trực tiếp từ business layer qua [enforcement].
  * - Nút "Gỡ" phong cách Chu Sa (Crimson Seal).
  * - TUYỆT ĐỐI KHÔNG DÙNG ICON Ổ KHÓA (Tuân thủ nghiêm ngặt Canonical Design V2 Mục 6).
  */
@@ -39,14 +49,61 @@ fun AppItemGridCard(
     appName: String,
     linkedTasksCount: Int,
     onRemoveClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enforcement: AppEnforcementDetails? = null
 ) {
-    val hasLinks = linkedTasksCount > 0
+    val hasLinks = (enforcement?.totalLinkedTasksCount ?: linkedTasksCount) > 0
+
+    // Phân giải hiển thị trạng thái hoàn toàn từ Business Layer (Zero Business Logic in UI)
+    val badgeConfig: EnforcementBadgeConfig = when {
+        enforcement != null -> {
+            when (enforcement.reason) {
+                EnforcementReason.LOCKED_BY_POLICY -> EnforcementBadgeConfig(
+                    text = "Khóa kỹ thuật",
+                    backgroundColor = CultivationTheme.colors.crimsonSealMuted,
+                    textColor = CultivationTheme.colors.crimsonSeal,
+                    borderColor = CultivationTheme.colors.crimsonSeal.copy(alpha = 0.6f)
+                )
+                EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS -> EnforcementBadgeConfig(
+                    text = "Đã mở (${enforcement.completedLinkedTasksCount}/${enforcement.requiredTasksCount})",
+                    backgroundColor = CultivationTheme.colors.spiritTealMuted,
+                    textColor = CultivationTheme.colors.spiritTeal,
+                    borderColor = CultivationTheme.colors.spiritTeal.copy(alpha = 0.6f)
+                )
+                EnforcementReason.LOCKED_INSUFFICIENT_TASKS -> EnforcementBadgeConfig(
+                    text = "Cần ${enforcement.requiredTasksCount}/${enforcement.totalLinkedTasksCount} (Xong ${enforcement.completedLinkedTasksCount})",
+                    backgroundColor = CultivationTheme.colors.celestialGoldMuted,
+                    textColor = CultivationTheme.colors.celestialGold,
+                    borderColor = CultivationTheme.colors.etherealIndigo.copy(alpha = 0.5f)
+                )
+                EnforcementReason.LOCKED_BY_VAULT_NO_TASK -> EnforcementBadgeConfig(
+                    text = "Chưa liên kết (Khóa)",
+                    backgroundColor = CultivationTheme.colors.surface,
+                    textColor = CultivationTheme.colors.textMuted,
+                    borderColor = null
+                )
+                else -> EnforcementBadgeConfig(
+                    text = if (hasLinks) "$linkedTasksCount nhiệm vụ" else "Chưa liên kết",
+                    backgroundColor = if (hasLinks) CultivationTheme.colors.etherealIndigoMuted else CultivationTheme.colors.surface,
+                    textColor = if (hasLinks) CultivationTheme.colors.etherealIndigo else CultivationTheme.colors.textMuted,
+                    borderColor = if (hasLinks) CultivationTheme.colors.etherealIndigo.copy(alpha = 0.5f) else null
+                )
+            }
+        }
+        else -> {
+            EnforcementBadgeConfig(
+                text = if (hasLinks) "$linkedTasksCount nhiệm vụ" else "Chưa liên kết",
+                backgroundColor = if (hasLinks) CultivationTheme.colors.etherealIndigoMuted else CultivationTheme.colors.surface,
+                textColor = if (hasLinks) CultivationTheme.colors.etherealIndigo else CultivationTheme.colors.textMuted,
+                borderColor = if (hasLinks) CultivationTheme.colors.etherealIndigo.copy(alpha = 0.5f) else null
+            )
+        }
+    }
 
     CultivationCard(
         modifier = modifier,
         variant = if (hasLinks) CultivationCardVariant.ELEVATED else CultivationCardVariant.STANDARD,
-        borderColor = if (hasLinks) CultivationTheme.colors.etherealIndigo.copy(alpha = 0.5f) else null,
+        borderColor = badgeConfig.borderColor,
         contentPadding = 12.dp
     ) {
         Column(
@@ -74,20 +131,16 @@ fun AppItemGridCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Badge trạng thái liên kết nhiệm vụ (Dựa trên dữ liệu thực)
-            val badgeText = if (hasLinks) "$linkedTasksCount nhiệm vụ" else "Chưa liên kết"
-            val badgeBg = if (hasLinks) CultivationTheme.colors.etherealIndigoMuted else CultivationTheme.colors.surface
-            val badgeColor = if (hasLinks) CultivationTheme.colors.etherealIndigo else CultivationTheme.colors.textMuted
-
+            // Badge trạng thái thực thi phong ấn (Dựa trên dữ liệu thực từ Business Layer)
             Box(
                 modifier = Modifier
-                    .background(badgeBg, CultivationTheme.shapes.chip)
+                    .background(badgeConfig.backgroundColor, CultivationTheme.shapes.chip)
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = badgeText,
+                    text = badgeConfig.text,
                     style = CultivationTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
-                    color = badgeColor
+                    color = badgeConfig.textColor
                 )
             }
 

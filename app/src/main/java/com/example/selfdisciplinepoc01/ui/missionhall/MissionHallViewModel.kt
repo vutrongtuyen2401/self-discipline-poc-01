@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
+import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapter
 import com.example.selfdisciplinepoc01.domain.model.SequentialTaskChain
 import com.example.selfdisciplinepoc01.domain.model.Task
 import com.example.selfdisciplinepoc01.domain.model.VaultApp
@@ -42,7 +43,8 @@ class MissionHallViewModel(
     private val archiveTaskUseCase: ArchiveTaskUseCase,
     private val getTaskLinkedAppsUseCase: GetTaskLinkedAppsUseCase,
     private val updateTaskLinkedAppsUseCase: UpdateTaskLinkedAppsUseCase,
-    private val getVaultAppsUseCase: GetVaultAppsUseCase
+    private val getVaultAppsUseCase: GetVaultAppsUseCase,
+    private val enforcementAdapter: TaskAppEnforcementAdapter? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MissionHallUiState())
@@ -131,6 +133,7 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = completeTaskUseCase(taskId)
             result.onSuccess {
+                enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
                     it.copy(bannerMessage = "Đã hoàn thành một nhiệm vụ!")
@@ -147,6 +150,7 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = archiveTaskUseCase(taskId)
             result.onSuccess {
+                enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
                     it.copy(bannerMessage = "Đã xóa nhiệm vụ khỏi chuỗi.")
@@ -194,6 +198,7 @@ class MissionHallViewModel(
         viewModelScope.launch {
             val result = updateTaskLinkedAppsUseCase(task.id, selected)
             result.onSuccess {
+                enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
                     it.copy(
@@ -226,7 +231,8 @@ class MissionHallViewModel(
     companion object {
         fun provideFactory(
             repository: CoreDataRepository,
-            businessDayProvider: BusinessDayProvider
+            businessDayProvider: BusinessDayProvider,
+            enforcementAdapter: TaskAppEnforcementAdapter? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -237,7 +243,8 @@ class MissionHallViewModel(
                     archiveTaskUseCase = ArchiveTaskUseCase(repository),
                     getTaskLinkedAppsUseCase = GetTaskLinkedAppsUseCase(repository),
                     updateTaskLinkedAppsUseCase = UpdateTaskLinkedAppsUseCase(repository),
-                    getVaultAppsUseCase = GetVaultAppsUseCase(repository)
+                    getVaultAppsUseCase = GetVaultAppsUseCase(repository),
+                    enforcementAdapter = enforcementAdapter
                 ) as T
             }
         }

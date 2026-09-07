@@ -5,11 +5,18 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.domain.discovery.InstalledAppDiscoveryService
+import com.example.selfdisciplinepoc01.domain.enforcement.AppEnforcementClassification
+import com.example.selfdisciplinepoc01.domain.enforcement.AppEnforcementDetails
+import com.example.selfdisciplinepoc01.domain.enforcement.BusinessUnlockDecision
+import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementAction
+import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementReason
+import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapter
 import com.example.selfdisciplinepoc01.domain.model.DiscoveredApp
 import com.example.selfdisciplinepoc01.domain.model.VaultApp
 import com.example.selfdisciplinepoc01.domain.usecase.AddVaultAppUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.RemoveVaultAppUseCase
+import com.example.selfdisciplinepoc01.policy.PolicyDecision
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +26,7 @@ import kotlinx.coroutines.launch
 
 data class VaultUiState(
     val vaultApps: List<VaultApp> = emptyList(),
+    val appEnforcementMap: Map<String, AppEnforcementDetails> = emptyMap(),
     val isLoading: Boolean = true,
     val isAddingApp: Boolean = false,
     val discoveredApps: List<DiscoveredApp> = emptyList(),
@@ -42,7 +50,8 @@ class VaultViewModel(
     private val getVaultAppsUseCase: GetVaultAppsUseCase,
     private val addVaultAppUseCase: AddVaultAppUseCase,
     private val removeVaultAppUseCase: RemoveVaultAppUseCase,
-    private val discoveryService: InstalledAppDiscoveryService
+    private val discoveryService: InstalledAppDiscoveryService,
+    private val enforcementAdapter: TaskAppEnforcementAdapter? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(VaultUiState())
@@ -59,11 +68,48 @@ class VaultViewModel(
                     _uiState.update { it.copy(isLoading = false, bannerMessage = "Lỗi tải Bảo Khố: ${e.message}") }
                 }
                 .collect { apps ->
+                    val enforcements = apps.associate { app ->
+                        app.packageName to (enforcementAdapter?.evaluateSync(app.packageName) ?: createDefaultEnforcement(app))
+                    }
                     _uiState.update {
-                        it.copy(vaultApps = apps, isLoading = false)
+                        it.copy(
+                            vaultApps = apps,
+                            appEnforcementMap = enforcements,
+                            isLoading = false
+                        )
                     }
                 }
         }
+    }
+
+    fun refreshEnforcement() {
+        val currentApps = _uiState.value.vaultApps
+        if (currentApps.isNotEmpty()) {
+            val enforcements = currentApps.associate { app ->
+                app.packageName to (enforcementAdapter?.evaluateSync(app.packageName) ?: createDefaultEnforcement(app))
+            }
+            _uiState.update { it.copy(appEnforcementMap = enforcements) }
+        }
+    }
+
+    private fun createDefaultEnforcement(app: VaultApp): AppEnforcementDetails {
+        val hasTasks = app.linkedTasksCount > 0
+        return AppEnforcementDetails(
+            packageName = app.packageName,
+            isTechnicalLockActive = false,
+            technicalPolicyDecision = PolicyDecision.ALLOW,
+            isVaultApp = true,
+            classification = if (hasTasks) AppEnforcementClassification.VAULT_APP_WITH_TASKS else AppEnforcementClassification.VAULT_APP_UNLINKED,
+            totalLinkedTasksCount = app.linkedTasksCount,
+            activeLinkedTasksCount = app.linkedTasksCount,
+            completedLinkedTasksCount = 0,
+            incompleteLinkedTasksCount = app.linkedTasksCount,
+            archivedLinkedTasksCount = 0,
+            requiredTasksCount = if (hasTasks) (2 * app.linkedTasksCount + 2) / 3 else 0,
+            businessUnlockDecision = if (hasTasks) BusinessUnlockDecision.INSUFFICIENT_COMPLETION else BusinessUnlockDecision.NO_LINKED_TASKS,
+            finalAction = EnforcementAction.LOCK,
+            reason = if (hasTasks) EnforcementReason.LOCKED_INSUFFICIENT_TASKS else EnforcementReason.LOCKED_BY_VAULT_NO_TASK
+        )
     }
 
     fun onOpenAddDialog() {
@@ -165,7 +211,8 @@ class VaultViewModel(
     companion object {
         fun provideFactory(
             repository: CoreDataRepository,
-            discoveryService: InstalledAppDiscoveryService
+            discoveryService: InstalledAppDiscoveryService,
+            enforcementAdapter: TaskAppEnforcementAdapter? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -173,7 +220,8 @@ class VaultViewModel(
                     getVaultAppsUseCase = GetVaultAppsUseCase(repository),
                     addVaultAppUseCase = AddVaultAppUseCase(repository),
                     removeVaultAppUseCase = RemoveVaultAppUseCase(repository),
-                    discoveryService = discoveryService
+                    discoveryService = discoveryService,
+                    enforcementAdapter = enforcementAdapter
                 ) as T
             }
         }

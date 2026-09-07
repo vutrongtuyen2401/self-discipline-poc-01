@@ -127,9 +127,13 @@ fun VaultScreen(
 
                     // Card Thống kê quy mô Bảo Khố (Full span)
                     item(span = { GridItemSpan(maxLineSpan) }) {
+                        val unlockedCount = uiState.appEnforcementMap.values.count {
+                            it.finalAction == com.example.selfdisciplinepoc01.domain.enforcement.EnforcementAction.ALLOW
+                        }
                         VaultSummaryCard(
                             totalApps = uiState.vaultApps.size,
-                            sealedApps = uiState.vaultApps.count { it.linkedTasksCount > 0 }
+                            sealedApps = uiState.vaultApps.count { it.linkedTasksCount > 0 },
+                            unlockedApps = unlockedCount
                         )
                     }
 
@@ -178,6 +182,7 @@ fun VaultScreen(
                                 packageName = app.packageName,
                                 appName = app.appName,
                                 linkedTasksCount = app.linkedTasksCount,
+                                enforcement = uiState.appEnforcementMap[app.packageName],
                                 onRemoveClick = { viewModel.onPromptRemoveApp(app) }
                             )
                         }
@@ -232,7 +237,8 @@ fun VaultScreen(
 @Composable
 fun VaultSummaryCard(
     totalApps: Int,
-    sealedApps: Int
+    sealedApps: Int,
+    unlockedApps: Int = 0
 ) {
     CultivationCard(
         modifier = Modifier.fillMaxWidth(),
@@ -265,6 +271,8 @@ fun VaultSummaryCard(
                 Text(
                     text = if (totalApps == 0) {
                         "Chưa thu nạp pháp bảo ứng dụng nào"
+                    } else if (unlockedApps > 0) {
+                        "Đã thu nạp $totalApps ứng dụng ($sealedApps có liên kết, $unlockedApps đã giải phong ấn)"
                     } else {
                         "Đã thu nạp $totalApps ứng dụng ($sealedApps ứng dụng có liên kết nhiệm vụ)"
                     },

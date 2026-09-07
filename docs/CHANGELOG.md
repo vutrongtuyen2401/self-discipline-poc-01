@@ -2,6 +2,40 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 24] - 2026-09-07: PRODUCT FLOW VALIDATION & UNLOCK UX
+
+> [!IMPORTANT]
+> **Xác nhận Quyết định Sản phẩm & Quản trị:** OPEN-01 đã CLOSED từ Phase 23; OPEN-02..07 tiếp tục GIỮ NGUYÊN trạng thái OPEN. Tuyệt đối không mở rộng hay phát minh thêm business rule.
+
+### Bản chất giai đoạn:
+- **Kiểm chứng Toàn diện End-to-End Product Flow của OPEN-01:**
+  Bảo Khố $\rightarrow$ Liên kết App với Task $\rightarrow$ Nhiệm Vụ Đường $\rightarrow$ Hoàn thành Task $\rightarrow$ Cập nhật Tiến độ $\rightarrow$ Đạt $\lceil 2N/3 \rceil$ $\rightarrow$ App được Business Unlock $\rightarrow$ Qua mốc 04:00 $\rightarrow$ Cycle mới $\rightarrow$ App trở lại LOCK.
+- **Tích Hợp UX/State Minh Bạch Theo Triết Lý Tiên Hiệp (Xianxia Design System):**
+  * Không hardcode business logic hay công thức $\lceil 2N/3 \rceil$ trong UI Composable.
+  * UI chỉ nhận và hiển thị thông tin thực thi từ Domain Model (`AppEnforcementDetails` gồm `completedTasks`, `totalTasks`, `requiredTasks`, `reason`, `action`).
+  * Trực quan hóa trạng thái ứng dụng tại Bảo Khố (`AppItemGridCard`):
+    - `ALLOWED_UNLOCKED_BY_TASKS`: Badge "Đã mở (X/Y)" (Thanh Ngọc / Spirit Teal), viền phát quang.
+    - `LOCKED_INSUFFICIENT_TASKS`: Badge "Cần X/Y (Xong Z)" (Kim Tinh / Celestial Gold / Amber).
+    - `LOCKED_BY_POLICY`: Badge "Khóa kỹ thuật" (Chu Sa / Crimson Seal).
+    - `LOCKED_BY_VAULT_NO_TASK`: Badge "Chưa liên kết (Khóa)" (Xám mờ / Slate).
+    - Tuyệt đối không dùng icon ổ khóa cổ điển.
+- **Tự Động Làm Mới Snapshot Tức Thì (Instant Cache Invalidation):**
+  * `TaskAppEnforcementAdapterProvider.kt`: Cung cấp singleton adapter thread-safe dùng chung giữa `AppDetectorAccessibilityService`, `VaultViewModel`, và `MissionHallViewModel`.
+  * `MissionHallViewModel`: Khi gọi `onCompleteTask`, `onArchiveTask`, `onSaveTaskLinkage` $\rightarrow$ tự động kích hoạt `recomputeSnapshot()` ngay lập tức để Accessibility Service thấy trạng thái mới 0ms.
+  * `VaultViewModel`: Phơi bày `appEnforcementMap` trong `VaultUiState`, cung cấp `refreshEnforcement()` cập nhật trạng thái đồng bộ khi vào màn hình Bảo Khố.
+
+### Kiểm thử & Xác minh:
+- **Unit & Integration Test Suite Toàn Diện `ProductFlowValidationTest.kt`:**
+  * 10/10 test scenarios kiểm chứng đầy đủ 5 luồng cốt lõi: 3 tasks unlock flow, 4 tasks boundary, 5 tasks boundary, technical override precedence, 04:00 reset boundary, cascade remove/re-add, archived tasks exclusion, VaultViewModel mapping integration.
+- **Kết quả Kiểm thử Tự động:** **328/328 tests PASS (100% Success Rate)** trên Gradle.
+- **Build APK:** `.\gradlew.bat assembleDebug` **BUILD SUCCESSFUL**.
+- **Kiểm chứng Trực Tiếp trên Thiết Bị Thật vivo iQOO Neo 10 (V2425A / Android 15 / API 35):**
+  * Cài đặt APK Debug thành công qua ADB.
+  * Scenario 1: Màn hình Bảo Khố ban đầu hiển thị đúng `Cần 1/1 (Xong 0)` cho app liên kết và `Chưa liên kết (Khóa)` cho app không có task.
+  * Scenario 2: Hoàn thành nhiệm vụ trên Nhiệm Vụ Đường $\rightarrow$ Bảo Khố cập nhật tức thì thành `Đã mở (1/1)` kèm viền xanh Thanh Ngọc.
+  * Scenario 3: Khởi chạy app trên thiết bị thật $\rightarrow$ App mở bình thường, Accessibility Shield không can thiệp chặn.
+  * Bằng chứng hình ảnh: `screen_p24_main.png`, `screen_p24_vault.png`, `screen_p24_completed.png`, `screen_p24_unlocked.png`, `screen_p24_app_allowed.png`.
+
 ## [Phase 23] - 2026-09-07: IMPLEMENT OPEN-01 TASK-BASED UNLOCK
 
 > [!IMPORTANT]

@@ -55,11 +55,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
     }
 
     private val enforcementAdapter: TaskAppEnforcementAdapter by lazy {
-        TaskAppEnforcementAdapter(
-            coreDataRepository = coreDataRepository,
-            policyEngine = policyEngine,
-            businessDayProvider = BusinessDayProviderHolder.instance
-        )
+        com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(applicationContext)
     }
 
     private val usageLimitWatcher: UsageLimitWatcher by lazy {
