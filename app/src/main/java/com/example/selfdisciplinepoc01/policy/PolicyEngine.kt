@@ -49,6 +49,14 @@ class PolicyEngine(
     }
 
     /**
+     * Checks if a target application is configured and registered.
+     */
+    fun isTargetConfigured(packageName: String): Boolean {
+        val app = targetRepository.getTarget(packageName)
+        return app != null && app.enabled
+    }
+
+    /**
      * Evaluates policy for a specific [LockedApp].
      */
     fun evaluate(app: LockedApp): PolicyDecision {

@@ -18,6 +18,10 @@ import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
 import com.example.selfdisciplinepoc01.policy.ScheduleWatcher
 import com.example.selfdisciplinepoc01.policy.ScheduleWatcherImpl
+import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryProvider
+import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementAction
+import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapter
+import com.example.selfdisciplinepoc01.time.BusinessDayProviderHolder
 import com.example.selfdisciplinepoc01.usage.UsageLimitWatcher
 import com.example.selfdisciplinepoc01.usage.UsageLimitWatcherImpl
 import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
@@ -44,6 +48,18 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
     private val policyEngine by lazy {
         PolicyEngine(targetRepository, usageTracker)
+    }
+
+    private val coreDataRepository by lazy {
+        CoreDataRepositoryProvider.getRepository(applicationContext)
+    }
+
+    private val enforcementAdapter: TaskAppEnforcementAdapter by lazy {
+        TaskAppEnforcementAdapter(
+            coreDataRepository = coreDataRepository,
+            policyEngine = policyEngine,
+            businessDayProvider = BusinessDayProviderHolder.instance
+        )
     }
 
     private val usageLimitWatcher: UsageLimitWatcher by lazy {
@@ -507,18 +523,18 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // 2. Policy Evaluation: LOCK or ALLOW
-            val policyDecision = policyEngine.evaluate(packageName)
+            // 2. Comprehensive Enforcement Evaluation (Technical Policy + Vault & Mission Boundary)
+            val evaluation = enforcementAdapter.evaluateSync(packageName)
             logger.debug(
                 DiagnosticEvent(
                     type = DiagnosticEventType.POLICY_EVALUATION,
-                    message = "Policy evaluated for $packageName: $policyDecision",
+                    message = "Enforcement evaluated for $packageName: action=${evaluation.finalAction}, reason=${evaluation.reason}, classification=${evaluation.classification}",
                     packageName = packageName,
                     currentForegroundPackage = lastForegroundPackage
                 )
             )
 
-            if (policyDecision == PolicyDecision.ALLOW) {
+            if (evaluation.finalAction == EnforcementAction.ALLOW) {
                 val target = targetRepository.getTarget(packageName)
                 if (target != null && target.enabled) {
                     // Allowed target app in foreground: track usage (idempotent) and watch limit/schedule deadlines
@@ -558,12 +574,12 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
                 Log.i(
                     TAG,
-                    "[CHECK: ALLOWED_PKG -> RESET] Ứng dụng được phép: '$packageName'. Reset session: isChromeLocked: $prevLocked -> false, isLockScreenVisible -> false, lastLockLaunchTimestamp -> 0L | lastForegroundPackage: '$prevPkg' -> '$packageName'"
+                    "[CHECK: ALLOWED_PKG -> RESET] Ứng dụng được phép: '$packageName' (reason=${evaluation.reason}). Reset session: isChromeLocked: $prevLocked -> false, isLockScreenVisible -> false, lastLockLaunchTimestamp -> 0L | lastForegroundPackage: '$prevPkg' -> '$packageName'"
                 )
                 return
             }
 
-            // Target is LOCKED: stop ongoing usage and cancel watchers
+            // Target is LOCKED (by Technical Policy or Vault Sealing): stop ongoing usage and cancel watchers
             usageTracker.stopSession(packageName)
             usageLimitWatcher.onForegroundChanged(null)
             scheduleWatcher.onForegroundChanged(null)

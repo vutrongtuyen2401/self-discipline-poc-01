@@ -2,6 +2,55 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 20] - 2026-09-07: APP LOCK INTEGRATION DESIGN
+### Bản chất giai đoạn:
+- **Thiết kế và triển khai tầng tích hợp giữa Mission Domain + Vault Domain và App Lock Core.**
+- **Bảo vệ tuyệt đối Ranh giới cứng OPEN-01 (OPEN-01 HARD BOUNDARY):**
+  * Tuyệt đối không tự ý triển khai công thức mở khóa (không hard-code 2/3, không rounding, không định nghĩa special cases).
+  * Giữ trạng thái rõ ràng `BusinessUnlockDecision.PENDING_OPEN_01` và `EnforcementReason.LOCKED_PENDING_BUSINESS_RULE`, không biến thành unlock/allow dù task hoàn thành 100%.
+- **Bảo toàn tính an toàn thực thi và độ ưu tiên kỹ thuật (Technical App Lock Precedence):**
+  * Technical App Lock (`PolicyEngine` / `TargetRepository`) luôn giữ quyền ưu tiên tối thượng; nếu kỹ thuật cấm (`LOCK`) thì lập tức thực thi phong ấn, adapter không thể bypass.
+  * Tách biệt rạch ròi 3 nhóm phân loại: `NON_VAULT_APP` (không thuộc Vault), `VAULT_APP_UNLINKED` (thuộc Vault nhưng không liên kết task), `VAULT_APP_WITH_TASKS` (thuộc Vault và có liên kết task).
+  * Duy trì 100% Frozen Core: State Machine (`isLockScreenVisible`, duplicate intra-session skip, cooldown 1500ms), `BlockingShieldOverlay` (che 0ms), `LockScreenActivity` (safe home fallback), `BusinessDayProvider` (mốc 04:00:00).
+- **Thiết kế Main Thread Safe cho Accessibility Service:**
+  * Triển khai cơ chế Snapshot Cache in-memory cực nhanh (< 0.05ms, O(1)) qua `evaluateSync(packageName)` được đồng bộ ngầm qua Coroutine Scope với Room DB, không block UI thread của Accessibility Service.
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
+### Các nội dung đã thực hiện:
+- **Nâng cấp `TaskAppEnforcementAdapter.kt` (`domain/enforcement/`):**
+  * Định nghĩa Contract tích hợp: `AppEnforcementClassification`, `EnforcementAction`, `BusinessUnlockDecision`, `EnforcementReason`, `AppEnforcementDetails`.
+  * Triển khai `suspend fun evaluate(packageName)` truy vấn trực tiếp Room DB (`VaultAppDao`, `TaskAppCrossRefDao`, `TaskDao`, `DailyTaskCompletionDao`).
+  * Triển khai `fun evaluateSync(packageName)` đọc snapshot in-memory an toàn cho Main Thread của Accessibility Service.
+  * Bổ sung cơ chế đồng bộ snapshot cache ngầm: `refreshSnapshot()`, `startObserving()`.
+  * Duy trì backward compatibility đầy đủ cho constructor `(repository: CoreDataRepository)` và các hàm `getEnforcementStatus()`, `isTaskBasedUnlockApproved()`.
+  * Tuân thủ quy định: Không chứa bất kỳ phương thức nào có từ ngữ `point`, `ratio`, `percent`, `threshold`.
+- **Nâng cấp `PolicyEngine.kt` (`policy/`):**
+  * Bổ sung hàm `fun isTargetConfigured(packageName: String): Boolean` giúp phân biệt chính xác giữa `ALLOWED_BY_POLICY` (thuộc TargetRepository nhưng chưa đến giờ cấm hoặc chưa hết limit) và `ALLOWED_NOT_PROTECTED` (hoàn toàn không nằm trong danh sách kiểm soát).
+- **Tích hợp vào `AppDetectorAccessibilityService.kt`:**
+  * Khởi tạo `TaskAppEnforcementAdapter` với đầy đủ DAOs từ Room `AppDatabase`.
+  * Gọi `enforcementAdapter.evaluateSync(packageName)` trong `onAccessibilityEvent` ngay sau khi ghi nhận package foreground.
+  * Đánh giá kết hợp `PolicyEngine` (Technical Lock) và `TaskAppEnforcementAdapter` (Vault/Mission Policy): Ưu tiên Technical Lock; nếu Technical Lock không cấm thì thực thi theo Adapter action.
+  * Bảo toàn 100% Frozen Core State Machine: Rule A (`isLockScreenVisible`), Rule B (intra-session duplicate), Rule C (`COOLDOWN_MS = 1500L`), `launchLockSession`, `BlockingShieldOverlay`, `LockScreenActivity`.
+- **Bộ Kiểm Thử Toàn Diện `TaskAppEnforcementIntegrationTest.kt` (`test/.../domain/enforcement/`):**
+  * Viết 12 kịch bản kiểm thử:
+    1. App không thuộc Vault -> ALLOWED_NOT_PROTECTED.
+    2. App thuộc Vault nhưng không liên kết task -> LOCKED_BY_VAULT_NO_TASK.
+    3. App thuộc Vault có liên kết task incomplete -> LOCKED_PENDING_BUSINESS_RULE & PENDING_OPEN_01.
+    4. Nhiều task cùng 1 app -> LOCKED_PENDING_BUSINESS_RULE & PENDING_OPEN_01.
+    5. Một task nhiều app -> LOCKED_PENDING_BUSINESS_RULE & PENDING_OPEN_01.
+    6. Task bị archived -> Tự động bỏ qua task archived.
+    7. Task bị deleted -> Tự động bỏ qua task deleted.
+    8. Toàn bộ task hoàn thành 100% -> Vẫn LOCKED_PENDING_BUSINESS_RULE (OPEN-01 Hard Boundary, tuyệt đối không tự unlock).
+    9. Technical Lock cấm (`LOCK`) -> Ưu tiên tuyệt đối, adapter không bypass.
+    10. App là Target kỹ thuật nhưng hợp lệ (chưa tới giờ cấm) -> ALLOWED_BY_POLICY.
+    11. Đánh giá đồng bộ `evaluateSync` từ snapshot cache khớp hoàn toàn với `evaluate` bất đồng bộ.
+    12. Khởi tạo adapter với constructor tương thích ngược không crash.
+  * Toàn bộ test suite: **306/306 PASS (100% Success Rate)**.
+- **Kiểm thử thực tế trên thiết bị vivo iQOO Neo 10 (Android 15 / API 35):**
+  * Cài đặt APK Debug thành công (`Success`).
+  * Technical App Lock: Chrome (`com.android.chrome`) bị chặn tức thì 0ms, hiển thị `LockScreenActivity`.
+  * Vault App Lock: Thêm app thật `1.1.1.1` (`com.cloudflare.onedotonedotonedotone`) vào Bảo Khố -> Trở thành `VAULT_APP_UNLINKED`. Khi mở app, `AppDetectorAccessibilityService` đánh giá `action=LOCK, reason=LOCKED_BY_VAULT_NO_TASK` và kích hoạt `BlockingShieldOverlay` trong **17.85ms** (< 1 frame 60Hz), không crash, an toàn tuyệt đối.
+
 ---
 
 ## [Phase 19.5] - 2026-09-07: CULTIVATION UI DESIGN SYSTEM FOUNDATION

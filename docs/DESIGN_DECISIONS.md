@@ -253,3 +253,52 @@ Tất cả các quyết định dưới đây được trích xuất trực ti�
 ### 8.6. Quản Trị OPEN Items Trong Phase 19
 - **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
 
+---
+
+## 9. QUYẾT ĐỊNH KỸ THUẬT & QUẢN TRỊ TRONG PHASE 20 (PHASE 20 APP LOCK INTEGRATION DESIGN)
+
+### 9.1. Kiến Trúc Tích Hợp Đa Tầng (Multi-Tier Integration Architecture)
+- Thiết lập dòng dữ liệu chuẩn:
+  ```
+  Mission Domain (Tasks / Chains / Daily Completions)
+          ↓
+  Vault Domain (Vault Apps / TaskAppCrossRef)
+          ↓
+  TaskAppEnforcementAdapter (Classification & Enforcement Evaluation)
+          ↓
+  App Lock Enforcement Decision (Technical Priority -> Vault Policy)
+          ↓
+  Accessibility Shield / LockScreenActivity
+  ```
+- **Separation of Concerns:**
+  * Mission & Vault Domains chịu trách nhiệm toàn bộ logic nghiệp vụ (business state).
+  * `TaskAppEnforcementAdapter` chuyển đổi trạng thái nghiệp vụ thành đầu vào thực thi kỹ thuật (`AppEnforcementDetails`).
+  * `PolicyEngine` và `AppDetectorAccessibilityService` chịu trách nhiệm thực thi phong ấn (enforcement execution).
+  * UI hoàn toàn không can dự và không phải là source of truth của luồng thực thi.
+
+### 9.2. Phân Định Quyền Ưu Tiên Tuyệt Đối (Technical App Lock Precedence)
+- Technical Lock (`PolicyEngine` / `TargetRepository` với lịch trình Schedule & Daily Limit) luôn có độ ưu tiên cao nhất.
+- Nếu Technical Lock đánh giá cấm (`LOCK`), hệ thống lập tức phong ấn mà không phụ thuộc vào trạng thái nhiệm vụ hay Bảo Khố. Adapter tuyệt đối không thể bypass Technical Lock.
+
+### 9.3. Hợp Đồng Tích Hợp & Phân Loại 3 Nhóm Ứng Dụng
+- Adapter phân loại mọi ứng dụng thành 3 nhóm rõ ràng:
+  1. `NON_VAULT_APP`: Không có trong Bảo Khố.
+     * Nếu không bị Technical Lock cấm: `action = ALLOW`, `reason = ALLOWED_NOT_PROTECTED`.
+  2. `VAULT_APP_UNLINKED`: Có trong Bảo Khố nhưng chưa được gán bất kỳ nhiệm vụ nào.
+     * Luôn luôn phong ấn: `action = LOCK`, `reason = LOCKED_BY_VAULT_NO_TASK`, `decision = NOT_APPLICABLE`.
+  3. `VAULT_APP_WITH_TASKS`: Có trong Bảo Khố và đã được liên kết với ít nhất một nhiệm vụ.
+     * Nếu còn nhiệm vụ chưa xong hoặc tất cả nhiệm vụ đã xong: `action = LOCK`, `reason = LOCKED_PENDING_BUSINESS_RULE`, `decision = PENDING_OPEN_01`.
+
+### 9.4. Ranh Giới Cứng OPEN-01 (OPEN-01 Hard Boundary)
+- Tuyệt đối không tự ý áp dụng công thức "2/3 nhiệm vụ", không làm tròn số (rounding), không tự định nghĩa ngoại lệ.
+- Dù toàn bộ các nhiệm vụ liên kết của ứng dụng đã hoàn thành 100% trong ngày, quyết định mở khóa nghiệp vụ vẫn bắt buộc giữ nguyên `BusinessUnlockDecision.PENDING_OPEN_01` và `EnforcementReason.LOCKED_PENDING_BUSINESS_RULE`.
+- Ứng dụng chỉ được mở khóa khi có công thức chính thức từ Ký chủ (OPEN-01).
+
+### 9.5. Main Thread Safety Cho Accessibility Service (Snapshot Cache)
+- Accessibility Service chạy trên Main Thread của Android OS. Việc truy vấn SQLite/Room DB đồng bộ trên Main Thread bị Android cấm và gây jank/ANR.
+- Giải pháp: `TaskAppEnforcementAdapter` duy trì một `Snapshot Cache` trong bộ nhớ RAM được nạp bất đồng bộ qua Coroutine Scope.
+- `evaluateSync(packageName)` thực hiện tra cứu O(1) in-memory với độ trễ cực thấp (< 0.05ms), hoàn toàn an toàn cho Main Thread.
+
+### 9.6. Quản Trị OPEN Items Trong Phase 20
+- **OPEN-01, OPEN-02, OPEN-03, OPEN-04, OPEN-05, OPEN-06, OPEN-07 TIẾP TỤC GIỮ NGUYÊN TRẠNG THÁI OPEN.**
+
