@@ -1,6 +1,7 @@
 package com.example.selfdisciplinepoc01.data.repository
 
 import com.example.selfdisciplinepoc01.data.entity.AppEntity
+import com.example.selfdisciplinepoc01.data.entity.TaskAppCrossRef
 import com.example.selfdisciplinepoc01.data.entity.TaskEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -38,6 +39,7 @@ interface CoreDataRepository {
     suspend fun getTasksForApp(packageName: String): List<TaskEntity>
     fun observeAppsForTask(taskId: Long): Flow<List<AppEntity>>
     fun observeTasksForApp(packageName: String): Flow<List<TaskEntity>>
+    fun observeAllCrossRefs(): Flow<List<TaskAppCrossRef>>
 
     // --- Daily Task Completion (Cycle 04:00) ---
     suspend fun setTaskCompletion(taskId: Long, businessDate: String, isCompleted: Boolean)

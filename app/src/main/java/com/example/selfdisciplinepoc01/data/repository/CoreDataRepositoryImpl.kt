@@ -134,6 +134,10 @@ class CoreDataRepositoryImpl(
         return crossRefDao.observeTasksForApp(packageName)
     }
 
+    override fun observeAllCrossRefs(): Flow<List<TaskAppCrossRef>> {
+        return crossRefDao.observeAllCrossRefs()
+    }
+
     override suspend fun setTaskCompletion(taskId: Long, businessDate: String, isCompleted: Boolean) {
         if (isCompleted) {
             completionDao.setCompletion(

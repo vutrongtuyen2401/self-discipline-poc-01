@@ -39,6 +39,9 @@ interface TaskAppCrossRefDao {
     @Query("SELECT * FROM task_app_cross_ref")
     suspend fun getAllCrossRefs(): List<TaskAppCrossRef>
 
+    @Query("SELECT * FROM task_app_cross_ref")
+    fun observeAllCrossRefs(): Flow<List<TaskAppCrossRef>>
+
     @Query("SELECT * FROM task_app_cross_ref WHERE taskId = :taskId")
     suspend fun getCrossRefsForTask(taskId: Long): List<TaskAppCrossRef>
 

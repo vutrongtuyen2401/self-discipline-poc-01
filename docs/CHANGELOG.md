@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi kiến trúc, quyết định thiết kế và mốc phát triển quan trọng của dự án **Hệ Thống Tự Kỷ Luật Bản Thân (`self-discipline-poc-01`)** được ghi nhận tuần tự tại đây.
 
+## [Phase 27.1] - 2026-09-08: REAL PRODUCT FLOW VALIDATION & ENFORCEMENT SYNC
+
+> [!IMPORTANT]
+> **Xác minh Luồng Sản phẩm Thực tế & Đồng bộ Thực thi Tức thời:**
+> - **NGUYÊN NHÂN GỐC RỄ ĐƯỢC GIẢI QUYẾT TRIỆT ĐỂ (ROOT CAUSE FIXED):** `TaskAppEnforcementAdapter.startObserving()` trước đó thiếu lắng nghe Flow bảng `task_app_cross_ref`. Đã bổ sung `observeAllCrossRefs(): Flow<List<TaskAppCrossRef>>` vào `TaskAppCrossRefDao`, `CoreDataRepository`, `CoreDataRepositoryImpl` và đăng ký collector tự động kích hoạt `recomputeSnapshot()` khi liên kết Task-App thay đổi trên UI.
+> - **HARDENING CLOCK & USECASES:** Chuẩn hóa việc inject `Clock` và `zoneIdProvider` vào `CompleteTaskUseCase` và `GetMissionHallTasksUseCase`, giải quyết dứt điểm rủi ro clock rollover/skew giữa ngày hệ thống và ngày nghiệp vụ.
+> - **KIỂM CHỨNG TOÀN DIỆN 6 KỊCH BẢN (A - F) TRÊN THIẾT BỊ THẬT:**
+>   * Thiết bị: vivo iQOO Neo 10 (V2425A), Android 15, OriginOS 5 (Serial: `10CF3J1F3400238`).
+>   * 100% PASS cho Scenario A (N=0 lock), B (incomplete lock), C (completed allow), D (remove allow), E (re-add clean N=0 lock), F (dynamic linkage sync chuyển ALLOW sang LOCK ngay lập tức).
+> - **BỘ TEST HỒI QUY CHUYÊN BIỆT (+7 TESTS):** Tạo mới `TaskAppEnforcementAdapterRegressionTest.kt` bao phủ đầy đủ 7 kịch bản kiểm tra cập nhật trạng thái liên kết tức thì.
+> - **SỐ LIỆU KIỂM THỬ:** Tăng từ 352 tests (25 classes) lên **359 tests (26 classes)**, **100% PASS** (0 failures, 0 errors, 0 skipped). `assembleDebug` thành công.
+> - **QUẢN TRỊ OPEN ITEMS:** OPEN-01 & OPEN-04 tiếp tục CLOSED; OPEN-02, 03, 05, 06, 07 tiếp tục giữ nguyên OPEN nghiêm ngặt.
+
 ## [Phase 27] - 2026-09-07: CORE ENFORCEMENT & BUSINESS UNLOCK INTEGRATION AUDIT
 
 > [!IMPORTANT]

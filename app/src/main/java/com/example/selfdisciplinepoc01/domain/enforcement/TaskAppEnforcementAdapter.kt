@@ -210,6 +210,13 @@ class TaskAppEnforcementAdapter(
                     }
                 }
 
+                // Observe task-app cross reference associations changes
+                launch {
+                    coreDataRepository.observeAllCrossRefs().collect {
+                        recomputeSnapshot()
+                    }
+                }
+
                 // Observe daily completions changes
                 launch {
                     val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), zoneIdProvider()).toString()

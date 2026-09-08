@@ -138,11 +138,11 @@ class ProductFlowValidationTest {
         getVaultAppsUseCase = GetVaultAppsUseCase(coreRepository)
         removeVaultAppUseCase = RemoveVaultAppUseCase(coreRepository)
         createTaskUseCase = CreateTaskUseCase(coreRepository)
-        completeTaskUseCase = CompleteTaskUseCase(coreRepository, businessDayProvider)
+        completeTaskUseCase = CompleteTaskUseCase(coreRepository, businessDayProvider, clock = clock, zoneIdProvider = { testZone })
         archiveTaskUseCase = ArchiveTaskUseCase(coreRepository)
         getTaskLinkedAppsUseCase = GetTaskLinkedAppsUseCase(coreRepository)
         updateTaskLinkedAppsUseCase = UpdateTaskLinkedAppsUseCase(coreRepository)
-        getMissionHallTasksUseCase = GetMissionHallTasksUseCase(coreRepository, businessDayProvider)
+        getMissionHallTasksUseCase = GetMissionHallTasksUseCase(coreRepository, businessDayProvider, clock = clock, zoneIdProvider = { testZone })
     }
 
     @After

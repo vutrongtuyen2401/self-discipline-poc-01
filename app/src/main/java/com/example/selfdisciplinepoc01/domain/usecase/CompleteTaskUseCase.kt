@@ -2,6 +2,8 @@ package com.example.selfdisciplinepoc01.domain.usecase
 
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.time.BusinessDayProvider
+import com.example.selfdisciplinepoc01.time.Clock
+import com.example.selfdisciplinepoc01.time.SystemClockImpl
 import java.time.ZoneId
 
 /**
@@ -14,13 +16,15 @@ import java.time.ZoneId
  */
 class CompleteTaskUseCase(
     private val repository: CoreDataRepository,
-    private val businessDayProvider: BusinessDayProvider
+    private val businessDayProvider: BusinessDayProvider,
+    private val clock: Clock = SystemClockImpl(),
+    private val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() }
 ) {
     suspend operator fun invoke(
         taskId: Long,
-        completedWallTimeMillis: Long = System.currentTimeMillis(),
+        completedWallTimeMillis: Long = clock.wallTimeMillis(),
         taskStartWallMillis: Long? = null,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = zoneIdProvider()
     ): Result<Unit> {
         return try {
             val businessDate = if (taskStartWallMillis != null) {

@@ -5,6 +5,8 @@ import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.domain.model.SequentialTaskChain
 import com.example.selfdisciplinepoc01.domain.model.Task
 import com.example.selfdisciplinepoc01.time.BusinessDayProvider
+import com.example.selfdisciplinepoc01.time.Clock
+import com.example.selfdisciplinepoc01.time.SystemClockImpl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.time.ZoneId
@@ -20,12 +22,14 @@ import java.time.ZoneId
  */
 class GetMissionHallTasksUseCase(
     private val repository: CoreDataRepository,
-    private val businessDayProvider: BusinessDayProvider
+    private val businessDayProvider: BusinessDayProvider,
+    private val clock: Clock = SystemClockImpl(),
+    private val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() }
 ) {
 
     fun observeSequentialChain(
-        wallTimeMillis: Long = System.currentTimeMillis(),
-        zoneId: ZoneId = ZoneId.systemDefault()
+        wallTimeMillis: Long = clock.wallTimeMillis(),
+        zoneId: ZoneId = zoneIdProvider()
     ): Flow<SequentialTaskChain> {
         val businessDate = businessDayProvider.getBusinessDate(wallTimeMillis, zoneId).toString()
 
@@ -38,8 +42,8 @@ class GetMissionHallTasksUseCase(
     }
 
     suspend fun getSequentialChain(
-        wallTimeMillis: Long = System.currentTimeMillis(),
-        zoneId: ZoneId = ZoneId.systemDefault()
+        wallTimeMillis: Long = clock.wallTimeMillis(),
+        zoneId: ZoneId = zoneIdProvider()
     ): SequentialTaskChain {
         val businessDate = businessDayProvider.getBusinessDate(wallTimeMillis, zoneId).toString()
         val activeEntities = repository.getAllActiveTasks()
