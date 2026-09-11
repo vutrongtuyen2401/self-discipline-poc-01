@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <queries>
         <intent>
@@ -51,7 +52,7 @@
 
         <receiver
             android:name=".receiver.CycleBroadcastReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.example.selfdisciplinepoc01.ACTION_CYCLE_TRANSITION_0400" />
             </intent-filter>

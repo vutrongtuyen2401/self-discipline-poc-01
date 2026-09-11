@@ -249,27 +249,32 @@ Toàn bộ 415+ unit và integration tests của dự án đều **PASS 100%**, 
 
 ---
 
-## 15. Real Device Tests
+## 15. Runtime Acceptance Tests (Robolectric Android 15 / API 35 Simulation)
 
-Bảng tổng hợp kết quả kiểm thử 15 kịch bản bắt buộc theo đặc tả Phase 2A:
+> [!IMPORTANT]
+> **Tuân thủ nguyên tắc "NO TEST, NO PASS" & "REAL DEVICE RULE":**
+> Bảng kết quả dưới đây phản ánh việc thực thi thành công 15/15 kịch bản thông qua bộ kiểm thử tự động `CanonicalRuntimeIntegrationTest.kt` chạy trên **Robolectric API 35 (Android 15 SDK simulation)**.
+> Kết quả kiểm thử trên môi trường giả lập này **KHÔNG ĐƯỢC ĐỒNG NHẤT** với việc kiểm thử trên thiết bị phần cứng vật lý. Báo cáo bằng chứng thực tế trên thiết bị vật lý `vivo iQOO Neo 10` được ghi nhận độc lập tại [`docs/PHASE_2A_REAL_DEVICE_VALIDATION_REPORT.md`](file:///C:/Code/self-discipline-poc-01/docs/PHASE_2A_REAL_DEVICE_VALIDATION_REPORT.md).
 
-| Mã kiểm thử | Kịch bản kiểm thử | Hành vi kỳ vọng (SSOT) | Kết quả quan sát thực tế | Đánh giá |
+Bảng tổng hợp kết quả kiểm thử 15 kịch bản bắt buộc theo đặc tả Phase 2A trên môi trường kiểm thử tự động Robolectric API 35:
+
+| Mã kiểm thử | Kịch bản kiểm thử | Hành vi kỳ vọng (SSOT) | Kết quả quan sát thực tế (Robolectric API 35) | Đánh giá |
 | :--- | :--- | :--- | :--- | :--- |
-| **TEST A** | **UNLOCKED APP**: App phong ấn không có nhiệm vụ liên kết nào chưa hoàn thành. | App mở bình thường, không bị chặn. | `finalAction == ALLOW`, `businessUnlockDecision == NO_LINKED_TASKS`. | **PASS** |
-| **TEST B** | **LOCKED APP**: App phong ấn có nhiệm vụ liên kết chưa hoàn thành trong chu kỳ, không có voucher. | Canonical Evaluator trả về `LOCKED`. Luồng chặn Android được kích hoạt. | `finalAction == LOCK`, `reason == LOCKED_BY_INSUFFICIENT_TASKS`. | **PASS** |
-| **TEST C** | **N=2 (Đặc xá khởi đầu)**: Có 2 nhiệm vụ liên kết, đã hoàn thành 1 nhiệm vụ. | `Required = 1`. App được mở khóa (UNLOCKED). Khắc phục triệt để lỗi cũ. | `requiredTasksCount == 1`, `finalAction == ALLOW`. | **PASS** |
-| **TEST D** | **N=0**: Không có nhiệm vụ liên kết nào với app. | App được mở khóa (UNLOCKED). Khắc phục triệt để lỗi cũ. | `finalAction == ALLOW`, `businessUnlockDecision == NO_LINKED_TASKS`. | **PASS** |
-| **TEST E** | **REWARDLESS TASK**: Nhiệm vụ tồn tại nhưng không gắn thưởng vào Vault App. | Không tính vào N của Vault App. | Không làm thay đổi N của Vault App, `N = 0 => ALLOW`. | **PASS** |
-| **TEST F** | **EFFECTIVE VOUCHER**: App có điều kiện khóa nhưng sở hữu voucher còn hiệu lực. | Voucher ghi đè khóa, app được mở (UNLOCKED). | `finalAction == ALLOW`, `isVoucherOverrideActive == true`. | **PASS** |
-| **TEST G** | **VOUCHER EXPIRY**: Voucher hết hạn hiệu lực. | Đánh giá lại theo điều kiện nhiệm vụ. Nếu chưa đủ chỉ tiêu thì LOCKED. | Voucher hết hạn, `finalAction == LOCK`. | **PASS** |
-| **TEST H** | **03:59:59**: Thời điểm trước ranh giới chu kỳ. | Trạng thái nhiệm vụ thuộc chu kỳ cũ (hôm qua). | Nhiệm vụ đã hoàn thành trong chu kỳ cũ giữ app UNLOCKED. | **PASS** |
-| **TEST I** | **04:00:00**: Chuyển giao sang chu kỳ mới. | Chu kỳ mới kích hoạt. Không có thông báo, không rung, không popup. | Lập lịch báo thức không gây notification, transition âm thầm thành công. | **PASS** |
-| **TEST J** | **FOREGROUND AT 04:00**: App phong ấn bị khóa đang ở foreground lúc 04:00. | Tự động đẩy về Home và kích hoạt luồng System Panel / LockScreen. | `onCycleTransition()` phát hiện app foreground, gửi intent Home và mở LockScreen. | **PASS** |
-| **TEST K** | **PROCESS DEATH**: Tiến trình app bị kill và khởi động lại. | Khôi phục và tính toán chính xác chu kỳ hiện tại, không lỗi dữ liệu. | Chu kỳ được tái tính toán chính xác từ thời gian thực hệ thống. | **PASS** |
-| **TEST L** | **DEVICE REBOOT**: Thiết bị khởi động lại. | `BootReceiver` hòa giải chu kỳ và tái lập lịch 04:00:00. | `reconcileCycleOnStartup()` lập lại alarm chính xác. | **PASS** |
-| **TEST M** | **LONG OFFLINE**: Thiết bị tắt nguồn > 5 ngày. | Nhảy thẳng đến chu kỳ hiện tại. Tuyệt đối không replay các ngày cũ. | Tính chu kỳ trực tiếp, không replay, lịch sử chu kỳ cũ được bảo toàn. | **PASS** |
-| **TEST N** | **TIMEZONE CHANGE**: Người dùng đổi múi giờ thiết bị. | Chu kỳ và mốc 04:00:00 tiếp theo tự động điều chỉnh theo múi giờ mới. | Lập lại lịch báo thức 04:00:00 theo `ZoneId` mới thành công. | **PASS** |
-| **TEST O** | **LEGACY ENGINE BYPASS**: Thao tác thay đổi PolicyEngine hoặc Schedule cũ. | Không thể can thiệp hoặc ghi đè trạng thái của Vault App. | Vault App vẫn giữ nguyên quyết định từ Canonical Evaluator. | **PASS** |
+| **TEST A** | **UNLOCKED APP**: App phong ấn không có nhiệm vụ liên kết nào chưa hoàn thành. | App mở bình thường, không bị chặn. | `finalAction == ALLOW`, `businessUnlockDecision == NO_LINKED_TASKS`. | **PASS (Robolectric)** |
+| **TEST B** | **LOCKED APP**: App phong ấn có nhiệm vụ liên kết chưa hoàn thành trong chu kỳ, không có voucher. | Canonical Evaluator trả về `LOCKED`. Luồng chặn Android được kích hoạt. | `finalAction == LOCK`, `reason == LOCKED_BY_INSUFFICIENT_TASKS`. | **PASS (Robolectric)** |
+| **TEST C** | **N=2 (Đặc xá khởi đầu)**: Có 2 nhiệm vụ liên kết, đã hoàn thành 1 nhiệm vụ. | `Required = 1`. App được mở khóa (UNLOCKED). Khắc phục triệt để lỗi cũ. | `requiredTasksCount == 1`, `finalAction == ALLOW`. | **PASS (Robolectric)** |
+| **TEST D** | **N=0**: Không có nhiệm vụ liên kết nào với app. | App được mở khóa (UNLOCKED). Khắc phục triệt để lỗi cũ. | `finalAction == ALLOW`, `businessUnlockDecision == NO_LINKED_TASKS`. | **PASS (Robolectric)** |
+| **TEST E** | **REWARDLESS TASK**: Nhiệm vụ tồn tại nhưng không gắn thưởng vào Vault App. | Không tính vào N của Vault App. | Không làm thay đổi N của Vault App, `N = 0 => ALLOW`. | **PASS (Robolectric)** |
+| **TEST F** | **EFFECTIVE VOUCHER**: App có điều kiện khóa nhưng sở hữu voucher còn hiệu lực. | Voucher ghi đè khóa, app được mở (UNLOCKED). | `finalAction == ALLOW`, `isVoucherOverrideActive == true`. | **PASS (Robolectric)** |
+| **TEST G** | **VOUCHER EXPIRY**: Voucher hết hạn hiệu lực. | Đánh giá lại theo điều kiện nhiệm vụ. Nếu chưa đủ chỉ tiêu thì LOCKED. | Voucher hết hạn, `finalAction == LOCK`. | **PASS (Robolectric)** |
+| **TEST H** | **03:59:59**: Thời điểm trước ranh giới chu kỳ. | Trạng thái nhiệm vụ thuộc chu kỳ cũ (hôm qua). | Nhiệm vụ đã hoàn thành trong chu kỳ cũ giữ app UNLOCKED. | **PASS (Robolectric)** |
+| **TEST I** | **04:00:00**: Chuyển giao sang chu kỳ mới. | Chu kỳ mới kích hoạt. Không có thông báo, không rung, không popup. | Lập lịch báo thức không gây notification, transition âm thầm thành công. | **PASS (Robolectric)** |
+| **TEST J** | **FOREGROUND AT 04:00**: App phong ấn bị khóa đang ở foreground lúc 04:00. | Tự động đẩy về Home và kích hoạt luồng System Panel / LockScreen. | `onCycleTransition()` phát hiện app foreground, gửi intent Home và mở LockScreen. | **PASS (Robolectric)** |
+| **TEST K** | **PROCESS DEATH**: Tiến trình app bị kill và khởi động lại. | Khôi phục và tính toán chính xác chu kỳ hiện tại, không lỗi dữ liệu. | Chu kỳ được tái tính toán chính xác từ thời gian thực hệ thống. | **PASS (Robolectric)** |
+| **TEST L** | **DEVICE REBOOT**: Thiết bị khởi động lại. | `BootReceiver` hòa giải chu kỳ và tái lập lịch 04:00:00. | `reconcileCycleOnStartup()` lập lại alarm chính xác. | **PASS (Robolectric)** |
+| **TEST M** | **LONG OFFLINE**: Thiết bị tắt nguồn > 5 ngày. | Nhảy thẳng đến chu kỳ hiện tại. Tuyệt đối không replay các ngày cũ. | Tính chu kỳ trực tiếp, không replay, lịch sử chu kỳ cũ được bảo toàn. | **PASS (Robolectric)** |
+| **TEST N** | **TIMEZONE CHANGE**: Người dùng đổi múi giờ thiết bị. | Chu kỳ và mốc 04:00:00 tiếp theo tự động điều chỉnh theo múi giờ mới. | Lập lại lịch báo thức 04:00:00 theo `ZoneId` mới thành công. | **PASS (Robolectric)** |
+| **TEST O** | **LEGACY ENGINE BYPASS**: Thao tác thay đổi PolicyEngine hoặc Schedule cũ. | Không thể can thiệp hoặc ghi đè trạng thái của Vault App. | Vault App vẫn giữ nguyên quyết định từ Canonical Evaluator. | **PASS (Robolectric)** |
 
 ---
 
@@ -336,5 +341,6 @@ Theo đúng nguyên tắc bất biến của dự án:
 
 ## 22. Final Status
 
-- **Trạng thái:** **HOÀN THÀNH 100% (SUCCESS)**
-- Toàn bộ các tiêu chí nghiệm thu của Phase 2A đã được đáp ứng đầy đủ và xác minh qua kiểm thử tự động, build APK và phân tích mã nguồn. Mã nguồn sạch sẽ, không có xung đột thẩm quyền và tuân thủ nghiêm ngặt MASTER SSOT.
+- **Trạng thái:** **IMPLEMENTED & AUTOMATED PASS (Robolectric API 35) — REAL DEVICE EVIDENCE AUDITED**
+- Toàn bộ các tiêu chí thiết kế, tích hợp runtime và chuyển giao chu kỳ 04:00 theo chuẩn MASTER SSOT đã được hiện thực hóa và vượt qua 100% các bài kiểm thử tự động (Robolectric Android 15 / API 35).
+- Việc xác thực trên thiết bị thực tế `vivo iQOO Neo 10` đã được tiến hành với các bằng chứng kết nối, cài đặt APK, khởi chạy giao diện, lập lịch Alarm 04:00 và hòa giải chu kỳ tại `docs/PHASE_2A_REAL_DEVICE_VALIDATION_REPORT.md`.
