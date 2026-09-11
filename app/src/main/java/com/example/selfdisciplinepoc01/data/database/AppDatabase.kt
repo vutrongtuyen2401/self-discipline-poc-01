@@ -4,6 +4,16 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.selfdisciplinepoc01.data.canonical.dao.CanonicalTaskDao
+import com.example.selfdisciplinepoc01.data.canonical.dao.CanonicalVaultDao
+import com.example.selfdisciplinepoc01.data.canonical.dao.CanonicalVoucherDao
+import com.example.selfdisciplinepoc01.data.canonical.dao.TaskCycleStateDao
+import com.example.selfdisciplinepoc01.data.canonical.dao.TaskRewardLinkDao
+import com.example.selfdisciplinepoc01.data.canonical.entity.CanonicalTaskEntity
+import com.example.selfdisciplinepoc01.data.canonical.entity.CanonicalVaultAppEntity
+import com.example.selfdisciplinepoc01.data.canonical.entity.CanonicalVoucherEntity
+import com.example.selfdisciplinepoc01.data.canonical.entity.TaskCycleStateEntity
+import com.example.selfdisciplinepoc01.data.canonical.entity.TaskRewardLinkEntity
 import com.example.selfdisciplinepoc01.data.dao.AppDao
 import com.example.selfdisciplinepoc01.data.dao.DailyTaskCompletionDao
 import com.example.selfdisciplinepoc01.data.dao.TaskAppCrossRefDao
@@ -14,20 +24,22 @@ import com.example.selfdisciplinepoc01.data.entity.TaskAppCrossRef
 import com.example.selfdisciplinepoc01.data.entity.TaskEntity
 
 /**
- * Proposed Room Database for Core Data Foundation.
- *
- * PROPOSAL — OPEN-05 REMAINS OPEN.
- * This database serves as the technical foundation for Checkpoints CP3, CP5, CP6.
- * Existing DataStore persistence remains 100% active and untouched for App Lock runtime enforcement.
+ * Proposed Room Database for Core Data Foundation & Canonical Core.
  */
 @Database(
     entities = [
         AppEntity::class,
         TaskEntity::class,
         TaskAppCrossRef::class,
-        DailyTaskCompletionEntity::class
+        DailyTaskCompletionEntity::class,
+        // Canonical Core Entities (Phase 1B)
+        CanonicalTaskEntity::class,
+        TaskCycleStateEntity::class,
+        CanonicalVaultAppEntity::class,
+        TaskRewardLinkEntity::class,
+        CanonicalVoucherEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,6 +48,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun taskAppCrossRefDao(): TaskAppCrossRefDao
     abstract fun dailyTaskCompletionDao(): DailyTaskCompletionDao
+
+    // Canonical DAOs
+    abstract fun canonicalTaskDao(): CanonicalTaskDao
+    abstract fun taskCycleStateDao(): TaskCycleStateDao
+    abstract fun canonicalVaultDao(): CanonicalVaultDao
+    abstract fun taskRewardLinkDao(): TaskRewardLinkDao
+    abstract fun canonicalVoucherDao(): CanonicalVoucherDao
 
     companion object {
         @Volatile

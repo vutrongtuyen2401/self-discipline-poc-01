@@ -34,6 +34,38 @@ interface CanonicalTaskRepository {
     suspend fun saveTask(task: CanonicalTask)
     suspend fun saveCycleState(state: TaskCycleState)
     
+    /**
+     * Hoàn thành nhiệm vụ trong chu kỳ cụ thể (mặc định chu kỳ hiện tại).
+     * Chỉ tác động đến đúng chu kỳ này, không ảnh hưởng các chu kỳ khác.
+     */
+    suspend fun completeTask(
+        taskId: String,
+        cycleId: CanonicalCycleId,
+        completedAt: Instant = Instant.now()
+    )
+
+    /**
+     * Hoàn tác trạng thái hoàn thành của nhiệm vụ trong chu kỳ cụ thể.
+     * Chỉ tác động đến đúng chu kỳ này.
+     */
+    suspend fun undoTaskCompletion(
+        taskId: String,
+        cycleId: CanonicalCycleId
+    )
+
+    /**
+     * Xóa nhiệm vụ (Archive Task):
+     * - Đánh dấu isArchived = true để nhiệm vụ không còn tham gia chu kỳ hiện tại / tương lai.
+     * - Xóa các TaskRewardLink của nhiệm vụ này.
+     * - TUYỆT ĐỐI BẢO TOÀN toàn bộ lịch sử TaskCycleState của nhiệm vụ trong quá khứ.
+     */
+    suspend fun archiveTask(taskId: String)
+
+    /**
+     * Lấy toàn bộ lịch sử thực thi của nhiệm vụ qua tất cả các chu kỳ.
+     */
+    suspend fun getTaskCycleHistory(taskId: String): List<TaskCycleState>
+    
     suspend fun linkTaskToApp(taskId: String, packageName: String)
     suspend fun unlinkTaskFromApp(taskId: String, packageName: String)
     

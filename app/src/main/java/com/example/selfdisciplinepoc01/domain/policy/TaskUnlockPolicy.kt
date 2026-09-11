@@ -12,23 +12,19 @@ data class BusinessUnlockResult(
 )
 
 /**
- * Pure business policy component implementing the official Product Decision for OPEN-01.
+ * LEGACY COMPONENT — NON-CANONICAL RUNTIME:
+ * Chứa các sai lệch đã được ghi nhận so với MASTER SSOT:
+ * - N=0 bị gán LOCK (SSOT yêu cầu UNLOCKED).
+ * - N=2 tính ra 2 required (SSOT yêu cầu 1 do chính sách đặc xá khởi đầu).
  *
- * OFFICIAL PRODUCT DECISION — OPEN-01:
- * For a Vault App with N effective linked tasks (active, non-archived, non-deleted)
- * in the current business cycle (resetting at 04:00:00):
- *
- *   requiredCompletedTasks = ceil(2 * N / 3)
- *
- * Implemented with integer arithmetic:
- *   required = (2 * N + 2) / 3
- *
- * Unlock condition:
- *   completedTasks >= requiredCompletedTasks AND N > 0
- *
- * If not met: LOCK.
- * If met: ALLOW (subject to Technical App Lock priority).
+ * CANONICAL MIGRATION:
+ * Thành phần này KHÔNG thuộc canonical runtime path của Hệ Thống Phong Ấn Dục Vọng.
+ * CanonicalLockPolicy / CanonicalLockEvaluator là nguồn chân lý thẩm quyền duy nhất.
  */
+@Deprecated(
+    message = "Legacy POC-01 TaskUnlockPolicy containing SSOT discrepancies. Do not use for Canonical Core. Superseded by CanonicalLockPolicy.",
+    level = DeprecationLevel.WARNING
+)
 object TaskUnlockPolicy {
 
     /**
