@@ -107,6 +107,71 @@ class MainActivity : ComponentActivity() {
 
         val policyPkg = intent?.getStringExtra("EXTRA_POLICY_TARGET")
 
+        // Canonical Test Seams for P0 Real Device Validation
+        val testAlarmSec = intent?.getIntExtra("EXTRA_TEST_ALARM_DELAY_SEC", -1) ?: -1
+        if (testAlarmSec > 0) {
+            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.scheduleTestAlarm(applicationContext, testAlarmSec.toLong())
+        }
+
+        val seedLockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_LOCK_APP")
+        val seedUnlockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_UNLOCK_APP")
+        val clearCanonicalData = intent?.getBooleanExtra("EXTRA_CANONICAL_CLEAR_DATA", false) ?: false
+        val evalPkg = intent?.getStringExtra("EXTRA_EVALUATE_CANONICAL")
+
+        if (seedLockPkg != null || seedUnlockPkg != null || clearCanonicalData || evalPkg != null) {
+            lifecycleScope.launch {
+                val vaultRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getVaultRepository(applicationContext)
+                val taskRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getTaskRepository(applicationContext)
+                val adapter = com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(applicationContext)
+
+                if (seedLockPkg != null) {
+                    val now = java.time.Instant.now()
+                    vaultRepo.addVaultApp(
+                        com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp(
+                            packageName = seedLockPkg,
+                            displayName = "Test Vault App",
+                            addedAt = now
+                        )
+                    )
+                    val taskId = "test_task_${seedLockPkg.replace('.', '_')}"
+                    val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
+                    taskRepo.saveTask(
+                        com.example.selfdisciplinepoc01.domain.canonical.task.CanonicalTask(
+                            id = taskId,
+                            title = "Nhiệm vụ phong ấn test cho $seedLockPkg",
+                            createdAt = now
+                        )
+                    )
+                    taskRepo.linkTaskToApp(taskId, seedLockPkg)
+                    taskRepo.undoTaskCompletion(taskId, cycleId)
+                    adapter.recomputeSnapshot()
+                    val eval = adapter.evaluateSync(seedLockPkg)
+                    android.util.Log.i("CanonicalTestSeam", "[SEED_LOCKED] Đã seed Vault App '$seedLockPkg' có 1 task chưa hoàn thành (N=1, K=0). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
+                }
+
+                if (seedUnlockPkg != null) {
+                    val now = java.time.Instant.now()
+                    val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
+                    val taskId = "test_task_${seedUnlockPkg.replace('.', '_')}"
+                    taskRepo.completeTask(taskId, cycleId, now)
+                    adapter.recomputeSnapshot()
+                    val eval = adapter.evaluateSync(seedUnlockPkg)
+                    android.util.Log.i("CanonicalTestSeam", "[SEED_UNLOCKED] Đã hoàn thành task cho '$seedUnlockPkg' trong chu kỳ $cycleId (N=1, K=1). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
+                }
+
+                if (evalPkg != null) {
+                    adapter.recomputeSnapshot()
+                    val eval = adapter.evaluateSync(evalPkg)
+                    android.util.Log.i("CanonicalTestSeam", "[EVALUATE] Package '$evalPkg': finalAction=${eval.finalAction}, isVaultApp=${eval.isVaultApp}, reason=${eval.reason}")
+                }
+
+                if (clearCanonicalData) {
+                    adapter.refreshSnapshot()
+                    android.util.Log.i("CanonicalTestSeam", "[CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.")
+                }
+            }
+        }
+
         if (addPkg != null || removePkg != null || togglePkg != null || policyPkg != null) {
             val repo = TargetRepositoryProvider.getRepository(applicationContext)
             lifecycleScope.launch {

@@ -74,6 +74,44 @@ object CycleTransitionManager {
     }
 
     /**
+     * Test seam phục vụ xác thực P0-1 và P0-2 trên thiết bị thực tế:
+     * Lên lịch báo thức thật thông qua cùng PendingIntent và CycleBroadcastReceiver sau [delaySeconds] giây.
+     */
+    fun scheduleTestAlarm(
+        context: Context,
+        delaySeconds: Long = 5L
+    ) {
+        val triggerMillis = System.currentTimeMillis() + (delaySeconds * 1000L)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        if (alarmManager == null) {
+            Log.e(TAG, "AlarmManager không khả dụng trên thiết bị")
+            return
+        }
+
+        val intent = Intent(context, CycleBroadcastReceiver::class.java).apply {
+            action = ACTION_CYCLE_0400
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, REQUEST_CODE_CYCLE_ALARM, intent, flags)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            } else {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            }
+            Log.i(TAG, "[TEST_ALARM_SCHEDULED] Đã lên lịch AlarmManager test callback sau ${delaySeconds}s (triggerMillis=$triggerMillis)")
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Thiếu quyền exact alarm trong test seam, fallback sang setAndAllowWhileIdle", e)
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+        }
+    }
+
+    /**
      * Xử lý khi chạm mốc 04:00:00 thời gian thực.
      */
     fun onCycleBoundaryReached(
@@ -86,15 +124,36 @@ object CycleTransitionManager {
 
         // 1. Cập nhật snapshot in-memory của runtime adapter
         val adapter = TaskAppEnforcementAdapterProvider.getAdapter(context)
-        adapter.refreshSnapshot()
+        try {
+            kotlinx.coroutines.runBlocking {
+                adapter.recomputeSnapshot()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Lỗi recompute snapshot: ${e.message}")
+        }
 
         // 2. Lên lịch ngay cho 04:00:00 của ngày tiếp theo
         scheduleNextTransition(context, now, zoneId)
 
-        // 3. Kiểm tra ứng dụng đang foreground
-        val fgPackage = AppDetectorAccessibilityService.getCurrentForegroundPackage()
+        // 3. Kiểm tra ứng dụng đang foreground (kết hợp Accessibility và UsageStats fallback)
+        var fgPackage = AppDetectorAccessibilityService.getCurrentForegroundPackage()
         if (fgPackage.isNullOrBlank() || fgPackage == context.packageName) {
-            Log.d(TAG, "[CYCLE_TRANSITION_0400] Không có managed target app đang foreground (fgPackage='$fgPackage'). Kết thúc an toàn không phát sinh popup/rung/notification.")
+            try {
+                val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager
+                val time = System.currentTimeMillis()
+                val stats = usm?.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, time - 10000, time)
+                val top = stats?.maxByOrNull { it.lastTimeUsed }
+                if (top != null && top.packageName != context.packageName) {
+                    fgPackage = top.packageName
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Lỗi truy vấn UsageStatsManager fallback: ${e.message}")
+            }
+        }
+
+        Log.i(TAG, "[CYCLE_TRANSITION_0400] Foreground app phát hiện tại mốc 04:00: '$fgPackage'")
+        if (fgPackage.isNullOrBlank() || fgPackage == context.packageName) {
+            Log.i(TAG, "[CYCLE_TRANSITION_0400] Không có managed target app đang foreground. Kết thúc an toàn không phát sinh popup/rung/notification.")
             return
         }
 
@@ -134,7 +193,13 @@ object CycleTransitionManager {
         Log.i(TAG, "[RECONCILE] Khởi động / Hòa giải: Nhảy trực tiếp tới chu kỳ hiện tại ${currentBoundary.cycleId} (Zone: $zoneId). Không replay lịch sử.")
 
         val adapter = TaskAppEnforcementAdapterProvider.getAdapter(context)
-        adapter.refreshSnapshot()
+        try {
+            kotlinx.coroutines.runBlocking {
+                adapter.recomputeSnapshot()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Lỗi recompute snapshot on startup: ${e.message}")
+        }
 
         scheduleNextTransition(context, now, zoneId)
     }

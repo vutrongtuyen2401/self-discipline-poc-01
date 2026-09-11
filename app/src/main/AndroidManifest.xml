@@ -32,7 +32,7 @@
 
         <activity
             android:name=".LockScreenActivity"
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.SelfDisciplinePoc01.LockScreen" />
 
@@ -52,7 +52,7 @@
 
         <receiver
             android:name=".receiver.CycleBroadcastReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.example.selfdisciplinepoc01.ACTION_CYCLE_TRANSITION_0400" />
             </intent-filter>

@@ -333,7 +333,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         val isNewTransition = (prevPkg != packageName)
         val elapsedSinceLastLaunch = now - lastLockLaunchTimestamp
 
-        Log.d(
+        Log.i(
             TAG,
             "[CHECK: TARGET_LOCKED_PKG] Khóa package ($packageName, reason=$reason). prevPkg='$prevPkg', isNewTransition=$isNewTransition, isLockScreenVisible=$isLockScreenVisible, isChromeLocked=$isChromeLockedForCurrentTransition, elapsedSinceLastLaunch=${elapsedSinceLastLaunch}ms (cooldown=${COOLDOWN_MS}ms)"
         )
@@ -491,7 +491,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             val now = SystemClock.elapsedRealtime()
             val elapsedSinceLastLaunch = now - lastLockLaunchTimestamp
 
-            Log.d(
+            Log.i(
                 TAG,
                 "[EVENT: RECEIVED] pkg=$packageName, class=$className | lastForegroundPackage=$lastForegroundPackage, isLockScreenVisible=$isLockScreenVisible, isChromeLocked=$isChromeLockedForCurrentTransition, elapsedSinceLastLaunch=${elapsedSinceLastLaunch}ms"
             )
@@ -534,6 +534,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
             // 2. Comprehensive Enforcement Evaluation (Technical Policy + Vault & Mission Boundary)
             val evaluation = enforcementAdapter.evaluateSync(packageName)
+            Log.i(TAG, "[ENFORCEMENT: EVAL] $packageName -> action=${evaluation.finalAction}, reason=${evaluation.reason}, isVaultApp=${evaluation.isVaultApp}")
             logger.debug(
                 DiagnosticEvent(
                     type = DiagnosticEventType.POLICY_EVALUATION,

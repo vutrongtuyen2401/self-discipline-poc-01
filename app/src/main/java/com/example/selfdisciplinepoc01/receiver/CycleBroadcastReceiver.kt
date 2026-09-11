@@ -14,7 +14,7 @@ class CycleBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
         if (context == null) return
-        Log.i(TAG, "[RECEIVE] Nhận tín hiệu Alarm 04:00:00: action=${intent?.action}")
+        Log.i(TAG, "[RECEIVE_ALARM_CALLBACK] Android framework AlarmManager đã callback thành công! action=${intent?.action}")
 
         if (intent?.action == CycleTransitionManager.ACTION_CYCLE_0400) {
             CycleTransitionManager.onCycleBoundaryReached(context.applicationContext)
