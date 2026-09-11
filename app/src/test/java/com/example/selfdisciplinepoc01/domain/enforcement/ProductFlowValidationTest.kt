@@ -157,11 +157,11 @@ class ProductFlowValidationTest {
         // 1. Thu nạp app vào Bảo Khố
         addVaultAppUseCase(pkg, "Tiên Hiệp Truyền Kỳ")
 
-        // 2. Ban đầu N=0 -> LOCK
+        // 2. Ban đầu N=0 -> SSOT & Phase 2A: UNLOCKED (ALLOW)
         adapter.recomputeSnapshot()
         val eval0 = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.LOCK, eval0.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, eval0.reason)
+        assertEquals(EnforcementAction.ALLOW, eval0.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, eval0.reason)
         assertEquals(0, eval0.totalLinkedTasksCount)
         assertEquals(0, eval0.requiredTasksCount)
 
@@ -312,9 +312,9 @@ class ProductFlowValidationTest {
         )
 
         val evalTechnicalOverride = adapter.evaluateSync(pkg)
-        // Technical Lock luôn ghi đè tuyệt đối: finalAction BẮT BUỘC là LOCK
-        assertEquals(EnforcementAction.LOCK, evalTechnicalOverride.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_POLICY, evalTechnicalOverride.reason)
+        // MASTER SSOT: Canonical Lock là tối thượng cho Vault App -> Vẫn ALLOW, Technical Lock không thể override
+        assertEquals(EnforcementAction.ALLOW, evalTechnicalOverride.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, evalTechnicalOverride.reason)
         assertTrue(evalTechnicalOverride.isTechnicalLockActive)
     }
 
@@ -375,13 +375,13 @@ class ProductFlowValidationTest {
         assertEquals(EnforcementAction.ALLOW, evalRemoved.finalAction)
         assertEquals(EnforcementReason.ALLOWED_NOT_PROTECTED, evalRemoved.reason)
 
-        // Thu nạp lại app vào Vault -> Phải là N=0 (Không phục hồi liên kết cũ)
+        // Thu nạp lại app vào Vault -> N=0 -> SSOT: UNLOCKED (ALLOW)
         addVaultAppUseCase(pkg, "Tẩy Tủy Kinh Tái Lập")
         adapter.recomputeSnapshot()
 
         val evalReadded = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.LOCK, evalReadded.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, evalReadded.reason)
+        assertEquals(EnforcementAction.ALLOW, evalReadded.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, evalReadded.reason)
         assertEquals(0, evalReadded.totalLinkedTasksCount)
     }
 

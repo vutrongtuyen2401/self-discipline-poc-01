@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
@@ -122,6 +123,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         registerScreenReceiver()
         usageLimitWatcher.start()
         scheduleWatcher.start()
+        CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
     }
 
     override fun onServiceConnected() {
@@ -140,6 +142,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         registerScreenReceiver()
         usageLimitWatcher.start()
         scheduleWatcher.start()
+        CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
         Log.d(TAG, "AppDetectorAccessibilityService connected")
     }
 
@@ -278,6 +281,11 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             Log.w(TAG, "[WATCHER: CALLBACK_IGNORED] Bỏ qua callback limit deadline cho $packageName vì service đã dừng")
             return
         }
+        val evaluation = enforcementAdapter.evaluateSync(packageName)
+        if (evaluation.isVaultApp) {
+            Log.i(TAG, "[WATCHER: GUARD] $packageName là Vault App. Thẩm quyền tối cao thuộc về Canonical Lock Evaluator. Technical Limit Watcher không được can thiệp.")
+            return
+        }
         Log.i(TAG, "[WATCHER: CALLBACK] Deadline reached for $packageName -> launching lock session")
         usageTracker.stopSession(packageName)
         val now = SystemClock.elapsedRealtime()
@@ -291,6 +299,11 @@ class AppDetectorAccessibilityService : AccessibilityService() {
     private fun handleScheduleDeadlineReached(packageName: String) {
         if (!isRunning) {
             Log.w(TAG, "[SCHEDULE_WATCHER: CALLBACK_IGNORED] Bỏ qua callback schedule deadline cho $packageName vì service đã dừng")
+            return
+        }
+        val evaluation = enforcementAdapter.evaluateSync(packageName)
+        if (evaluation.isVaultApp) {
+            Log.i(TAG, "[SCHEDULE_WATCHER: GUARD] $packageName là Vault App. Thẩm quyền tối cao thuộc về Canonical Lock Evaluator. Technical Schedule Watcher không được can thiệp.")
             return
         }
         Log.i(TAG, "[SCHEDULE_WATCHER: CALLBACK] Schedule boundary reached for $packageName -> launching lock session")
@@ -655,6 +668,10 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         fun onPolicyUpdated(packageName: String) {
             instance?.usageLimitWatcher?.onPolicyUpdated(packageName)
             instance?.scheduleWatcher?.onPolicyUpdated(packageName)
+        }
+
+        fun getCurrentForegroundPackage(): String? {
+            return instance?.lastForegroundPackage
         }
     }
 }

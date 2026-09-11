@@ -2,6 +2,7 @@ package com.example.selfdisciplinepoc01.domain.enforcement
 
 import android.content.Context
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryProvider
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
 import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.repository.TargetRepositoryProvider
 import com.example.selfdisciplinepoc01.time.BusinessDayProviderHolder
@@ -10,10 +11,8 @@ import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
 /**
  * Thread-safe Singleton Provider cho [TaskAppEnforcementAdapter].
  *
- * Đảm bảo toàn bộ ứng dụng (Bao gồm AppDetectorAccessibilityService,
- * VaultViewModel, và MissionHallViewModel) chia sẻ cùng một snapshot cache
- * duy nhất trong bộ nhớ, tối ưu hóa thời gian đánh giá (< 0.05ms) và
- * đảm bảo invalidation tức thì khi Ký chủ hoàn thành nhiệm vụ.
+ * Tích hợp Canonical Core Repositories và Evaluator làm nguồn chân lý duy nhất,
+ * đồng thời giữ liên kết với legacy CoreDataRepository và PolicyEngine phục vụ non-vault apps.
  */
 object TaskAppEnforcementAdapterProvider {
 
@@ -27,6 +26,11 @@ object TaskAppEnforcementAdapterProvider {
         return instance ?: synchronized(this) {
             instance ?: run {
                 val appContext = context.applicationContext
+                val vaultRepo = CanonicalRepositoryProvider.getVaultRepository(appContext)
+                val taskRepo = CanonicalRepositoryProvider.getTaskRepository(appContext)
+                val cycleRepo = CanonicalRepositoryProvider.getCycleRepository(appContext)
+                val lockEvaluator = CanonicalRepositoryProvider.getLockEvaluator(appContext)
+
                 val coreDataRepo = CoreDataRepositoryProvider.getRepository(appContext)
                 val targetRepo = TargetRepositoryProvider.getRepository(appContext)
                 val usageTracker = UsageTrackerProvider.getTracker(appContext)
@@ -34,6 +38,10 @@ object TaskAppEnforcementAdapterProvider {
                 val businessDayProvider = BusinessDayProviderHolder.instance
 
                 TaskAppEnforcementAdapter(
+                    canonicalVaultRepository = vaultRepo,
+                    canonicalTaskRepository = taskRepo,
+                    canonicalCycleRepository = cycleRepo,
+                    canonicalLockEvaluator = lockEvaluator,
                     coreDataRepository = coreDataRepo,
                     policyEngine = policyEngine,
                     businessDayProvider = businessDayProvider

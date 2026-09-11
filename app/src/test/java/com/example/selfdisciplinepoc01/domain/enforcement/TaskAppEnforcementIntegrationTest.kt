@@ -138,13 +138,14 @@ class TaskAppEnforcementIntegrationTest {
     // ==================================================
 
     @Test
-    fun test02_vaultApp_unlinked_isLockedNoTasks() = runBlocking {
+    fun test02_vaultApp_unlinked_isUnlocked() = runBlocking {
         coreRepository.addVaultApp("com.google.android.youtube", "YouTube")
 
         val result = adapter.evaluate("com.google.android.youtube")
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        // MASTER SSOT & Phase 2A: N=0 in Vault is UNLOCKED (ALLOW)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(AppEnforcementClassification.VAULT_APP_UNLINKED, result.classification)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, result.reason)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
         assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, result.businessUnlockDecision)
         assertTrue(result.isVaultApp)
         assertEquals(0, result.totalLinkedTasksCount)
@@ -274,7 +275,7 @@ class TaskAppEnforcementIntegrationTest {
         assertEquals(EnforcementAction.ALLOW, unlockedResult.finalAction)
         assertEquals(BusinessUnlockDecision.UNLOCKED, unlockedResult.businessUnlockDecision)
 
-        // Archive t2 as well -> Active becomes 0 -> becomes unlinked effectively -> LOCK
+        // Archive t2 as well -> Active becomes 0 -> becomes unlinked effectively -> SSOT: UNLOCKED (ALLOW)
         coreRepository.archiveTask(t2)
         val resultAllArchived = adapter.evaluate("com.social.network")
         assertEquals(2, resultAllArchived.totalLinkedTasksCount)
@@ -282,8 +283,8 @@ class TaskAppEnforcementIntegrationTest {
         assertEquals(2, resultAllArchived.archivedLinkedTasksCount)
         assertEquals(0, resultAllArchived.requiredTasksCount)
         assertEquals(AppEnforcementClassification.VAULT_APP_UNLINKED, resultAllArchived.classification)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, resultAllArchived.reason)
-        assertEquals(EnforcementAction.LOCK, resultAllArchived.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, resultAllArchived.reason)
+        assertEquals(EnforcementAction.ALLOW, resultAllArchived.finalAction)
     }
 
     // ==================================================
@@ -387,11 +388,11 @@ class TaskAppEnforcementIntegrationTest {
 
         val result = adapter.evaluate("com.android.chrome")
 
-        // Supreme precedence: Technical Lock overrides everything
+        // MASTER SSOT & Phase 2A: Canonical Lock Sovereignty - Technical Lock CANNOT override Vault App!
         assertTrue(result.isTechnicalLockActive)
         assertEquals(PolicyDecision.LOCK, result.technicalPolicyDecision)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_POLICY, result.reason)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
         assertTrue(result.isVaultApp)
         assertEquals(1, result.completedLinkedTasksCount)
         assertEquals(1, result.requiredTasksCount)
@@ -587,11 +588,11 @@ class TaskAppEnforcementIntegrationTest {
         assertEquals(EnforcementAction.ALLOW, res.finalAction)
         assertEquals(BusinessUnlockDecision.UNLOCKED, res.businessUnlockDecision)
 
-        // Case D: Technical Lock active + Business threshold reached -> LOCK
+        // Case D: Technical Lock active + Business threshold reached -> SSOT: Canonical Lock Sovereignty -> ALLOW
         fakeTargetRepo.apps[pkg] = LockedApp(packageName = pkg, enabled = true)
         res = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.LOCK, res.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_POLICY, res.reason)
+        assertEquals(EnforcementAction.ALLOW, res.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, res.reason)
         assertEquals(BusinessUnlockDecision.UNLOCKED, res.businessUnlockDecision)
         assertTrue(res.isTechnicalLockActive)
     }
@@ -680,13 +681,13 @@ class TaskAppEnforcementIntegrationTest {
         coreRepository.removeVaultApp(pkg)
         assertEquals(EnforcementAction.ALLOW, adapter.evaluate(pkg).finalAction) // Non-vault app
 
-        // Re-add to Vault: should have 0 linked tasks
+        // Re-add to Vault: should have 0 linked tasks -> SSOT: UNLOCKED (ALLOW)
         coreRepository.addVaultApp(pkg, "Re-add App")
         val resReadded = adapter.evaluate(pkg)
         assertEquals(0, resReadded.totalLinkedTasksCount)
         assertEquals(0, resReadded.activeLinkedTasksCount)
-        assertEquals(EnforcementAction.LOCK, resReadded.finalAction)
+        assertEquals(EnforcementAction.ALLOW, resReadded.finalAction)
         assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, resReadded.businessUnlockDecision)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, resReadded.reason)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, resReadded.reason)
     }
 }

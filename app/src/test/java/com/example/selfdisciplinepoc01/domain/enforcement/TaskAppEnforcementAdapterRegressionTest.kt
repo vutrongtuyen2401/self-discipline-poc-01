@@ -104,12 +104,13 @@ class TaskAppEnforcementAdapterRegressionTest {
         coreRepository.addVaultApp(pkg, "Scenario 1 App")
         adapter.recomputeSnapshot()
 
+        // MASTER SSOT & Phase 2A: N=0 in Vault is UNLOCKED (ALLOW)
         val detailsBefore = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.LOCK, detailsBefore.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, detailsBefore.reason)
+        assertEquals(EnforcementAction.ALLOW, detailsBefore.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, detailsBefore.reason)
         assertEquals(0, detailsBefore.totalLinkedTasksCount)
 
-        // Create and link task
+        // Create and link task -> N=1 incomplete task -> transitions to LOCK
         val taskId = coreRepository.createTask("Task for Scenario 1")
         coreRepository.linkTaskToApp(taskId, pkg)
         adapter.recomputeSnapshot()
@@ -187,7 +188,7 @@ class TaskAppEnforcementAdapterRegressionTest {
     /**
      * Scenario 5: removing linkage refreshes enforcement
      * App was unlocked with 1 completed task.
-     * When linkage is removed, app becomes N=0 in Vault -> instantly locked with LOCKED_BY_VAULT_NO_TASK.
+     * When linkage is removed, app becomes N=0 in Vault -> SSOT: UNLOCKED (ALLOW).
      */
     @Test
     fun test05_removingLinkageRefreshesEnforcement() = runBlocking {
@@ -205,18 +206,18 @@ class TaskAppEnforcementAdapterRegressionTest {
         coreRepository.unlinkTaskFromApp(taskId, pkg)
         adapter.recomputeSnapshot()
 
-        // Verify updated state: LOCK due to N=0
+        // Verify updated state: N=0 is UNLOCKED per MASTER SSOT
         val details = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.LOCK, details.finalAction)
+        assertEquals(EnforcementAction.ALLOW, details.finalAction)
         assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, details.businessUnlockDecision)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, details.reason)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details.reason)
         assertEquals(0, details.totalLinkedTasksCount)
     }
 
     /**
      * Scenario 6: re-adding app does not restore old linkage
      * App is removed from Vault, which cleans up cross-references.
-     * When re-added, it starts clean with N=0 and is locked.
+     * When re-added, it starts clean with N=0 and is UNLOCKED per SSOT.
      */
     @Test
     fun test06_reAddingAppDoesNotRestoreOldLinkage() = runBlocking {
@@ -237,10 +238,10 @@ class TaskAppEnforcementAdapterRegressionTest {
         coreRepository.addVaultApp(pkg, "Scenario 6 App Re-added")
         adapter.recomputeSnapshot()
 
-        // Must be locked with N=0, old linkage was NOT restored
+        // Re-added with N=0 -> SSOT: UNLOCKED, old linkage was NOT restored
         val details = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.LOCK, details.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, details.reason)
+        assertEquals(EnforcementAction.ALLOW, details.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details.reason)
         assertEquals(0, details.totalLinkedTasksCount)
     }
 

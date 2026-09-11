@@ -174,7 +174,7 @@ class CoreEnforcementIntegrationAuditTest {
     }
 
     @Test
-    fun test03_technicalLock_businessAllow_resultsInLock() = runBlocking {
+    fun test03_technicalLock_doesNotOverride_businessAllow_forVaultApp() = runBlocking {
         val pkg = "com.audit.case03"
         coreRepository.addVaultApp(pkg, "Case 03")
         val t1 = coreRepository.createTask("Task 1")
@@ -187,10 +187,10 @@ class CoreEnforcementIntegrationAuditTest {
         fakeTargetRepo.apps[pkg] = LockedApp(packageName = pkg, enabled = true)
         assertEquals(PolicyDecision.LOCK, policyEngine.evaluate(pkg))
 
-        // Business reaches UNLOCKED, but Technical LOCK overrides => finalAction is LOCK
+        // MASTER SSOT & Phase 2A: Canonical Lock là tối thượng cho Vault App -> finalAction là ALLOW
         val result = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_POLICY, result.reason)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
         assertTrue(result.isTechnicalLockActive)
         assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
     }
@@ -205,10 +205,10 @@ class CoreEnforcementIntegrationAuditTest {
         // Configure Technical Lock
         fakeTargetRepo.apps[pkg] = LockedApp(packageName = pkg, enabled = true)
 
-        // Business: 0/1 completed (Business LOCK) + Technical LOCK => Final LOCK
+        // Business: 0/1 completed (Business LOCK) + Technical LOCK => Final LOCK (reason: LOCKED_INSUFFICIENT_TASKS)
         val result = adapter.evaluate(pkg)
         assertEquals(EnforcementAction.LOCK, result.finalAction)
-        assertEquals(EnforcementReason.LOCKED_BY_POLICY, result.reason)
+        assertEquals(EnforcementReason.LOCKED_INSUFFICIENT_TASKS, result.reason)
         assertTrue(result.isTechnicalLockActive)
         assertEquals(BusinessUnlockDecision.INSUFFICIENT_COMPLETION, result.businessUnlockDecision)
     }
@@ -218,16 +218,17 @@ class CoreEnforcementIntegrationAuditTest {
     // =========================================================================
 
     @Test
-    fun test05_open01_N0_resultsInLock() = runBlocking {
+    fun test05_open01_N0_resultsInAllow() = runBlocking {
         val pkg = "com.audit.case05"
         coreRepository.addVaultApp(pkg, "Case 05")
 
+        // MASTER SSOT & Phase 2A: N=0 in Vault is UNLOCKED (ALLOW)
         val result = adapter.evaluate(pkg)
         assertEquals(0, result.activeLinkedTasksCount)
         assertEquals(0, result.requiredTasksCount)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, result.businessUnlockDecision)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, result.reason)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
     }
 
     @Test
@@ -265,7 +266,7 @@ class CoreEnforcementIntegrationAuditTest {
     }
 
     @Test
-    fun test08_open01_N2_completed1_resultsInLock() = runBlocking {
+    fun test08_open01_N2_completed1_resultsInAllow() = runBlocking {
         val pkg = "com.audit.case08"
         coreRepository.addVaultApp(pkg, "Case 08")
         val t1 = coreRepository.createTask("Task 1")
@@ -276,13 +277,13 @@ class CoreEnforcementIntegrationAuditTest {
         val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, today, true)
 
-        // N=2, required = (2*2+2)/3 = 2. completed = 1 < 2 => LOCK
+        // MASTER SSOT & Phase 2A: N=2, required = 1 (đặc xá khởi đầu). completed = 1 >= 1 => ALLOW
         val result = adapter.evaluate(pkg)
         assertEquals(2, result.activeLinkedTasksCount)
-        assertEquals(2, result.requiredTasksCount)
+        assertEquals(1, result.requiredTasksCount)
         assertEquals(1, result.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
-        assertEquals(BusinessUnlockDecision.INSUFFICIENT_COMPLETION, result.businessUnlockDecision)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
+        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
     }
 
     @Test
@@ -298,10 +299,10 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.setTaskCompletion(t1, today, true)
         coreRepository.setTaskCompletion(t2, today, true)
 
-        // N=2, completed = 2 >= 2 => ALLOW
+        // N=2, required = 1. completed = 2 >= 1 => ALLOW
         val result = adapter.evaluate(pkg)
         assertEquals(2, result.activeLinkedTasksCount)
-        assertEquals(2, result.requiredTasksCount)
+        assertEquals(1, result.requiredTasksCount)
         assertEquals(2, result.completedLinkedTasksCount)
         assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
@@ -499,14 +500,15 @@ class CoreEnforcementIntegrationAuditTest {
     // =========================================================================
 
     @Test
-    fun test18_vault_appWithoutLinkedTasks_isLocked() = runBlocking {
+    fun test18_vault_appWithoutLinkedTasks_isUnlocked() = runBlocking {
         val pkg = "com.audit.case18"
         coreRepository.addVaultApp(pkg, "Unlinked App")
 
         val result = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(AppEnforcementClassification.VAULT_APP_UNLINKED, result.classification)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, result.reason)
+        assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, result.businessUnlockDecision)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
     }
 
     @Test
@@ -518,17 +520,17 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.linkTaskToApp(t1, pkg)
         coreRepository.linkTaskToApp(t2, pkg)
 
-        // N=2, required=2. 0 completed => LOCK
-        assertEquals(EnforcementAction.LOCK, adapter.evaluate(pkg).finalAction)
+        // N=2, required=1 per MASTER SSOT. 0 completed => LOCK
+        val eval0 = adapter.evaluate(pkg)
+        assertEquals(EnforcementAction.LOCK, eval0.finalAction)
+        assertEquals(1, eval0.requiredTasksCount)
 
         val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, today, true)
-        // 1 completed < 2 => LOCK
-        assertEquals(EnforcementAction.LOCK, adapter.evaluate(pkg).finalAction)
-
-        coreRepository.setTaskCompletion(t2, today, true)
-        // 2 completed >= 2 => ALLOW
-        assertEquals(EnforcementAction.ALLOW, adapter.evaluate(pkg).finalAction)
+        // 1 completed >= 1 (Required=1) => ALLOW (SSOT N=2 formula)
+        val eval1 = adapter.evaluate(pkg)
+        assertEquals(EnforcementAction.ALLOW, eval1.finalAction)
+        assertEquals(BusinessUnlockDecision.UNLOCKED, eval1.businessUnlockDecision)
     }
 
     @Test
@@ -567,9 +569,9 @@ class CoreEnforcementIntegrationAuditTest {
 
         val result = adapter.evaluate(pkg)
         assertEquals(0, result.activeLinkedTasksCount)
-        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, result.businessUnlockDecision)
-        assertEquals(EnforcementReason.LOCKED_BY_VAULT_NO_TASK, result.reason)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
     }
 
     // =========================================================================
@@ -604,10 +606,11 @@ class CoreEnforcementIntegrationAuditTest {
         val pkg = "com.audit.case23"
         coreRepository.addVaultApp(pkg, "Immediate App")
 
+        // N=0 is ALLOW per MASTER SSOT
         adapter.recomputeSnapshot()
-        assertEquals(EnforcementAction.LOCK, adapter.evaluateSync(pkg).finalAction)
+        assertEquals(EnforcementAction.ALLOW, adapter.evaluateSync(pkg).finalAction)
 
-        // Link new task
+        // Link new incomplete task => N=1, required=1, completed=0 => LOCK
         val t1 = coreRepository.createTask("Immediate Task")
         coreRepository.linkTaskToApp(t1, pkg)
         adapter.recomputeSnapshot()
@@ -625,15 +628,15 @@ class CoreEnforcementIntegrationAuditTest {
         // Configure Technical Lock
         fakeTargetRepo.apps[pkg] = LockedApp(packageName = pkg, enabled = true)
 
-        // Attempt to populate cache with false ALLOW data
+        // Attempt to populate cache with non-vault data
         adapter.updateCacheForApp(
             packageName = pkg,
-            isVault = true,
+            isVault = false,
             linkedTasks = emptyList(),
             completedTaskIds = emptySet()
         )
 
-        // Even with whatever is in vault cache, PolicyEngine LOCK is checked first and CANNOT be bypassed
+        // For non-vault target app, PolicyEngine LOCK is enforced and CANNOT be bypassed
         val syncEval = adapter.evaluateSync(pkg)
         assertEquals(EnforcementAction.LOCK, syncEval.finalAction)
         assertEquals(EnforcementReason.LOCKED_BY_POLICY, syncEval.reason)
