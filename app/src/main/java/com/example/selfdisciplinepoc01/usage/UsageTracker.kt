@@ -22,9 +22,19 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * LEGACY COMPONENT (POC-01):
  * Tracks application usage time accurately using monotonic elapsed realtime,
  * with business day determination and 04:00 rollover splitting based on wall-clock time.
+ *
+ * CANONICAL ISOLATION (Phase 1A):
+ * UsageTracker thuộc hạ tầng theo dõi thời lượng sử dụng POC-01.
+ * MASTER SSOT không dùng cơ chế giới hạn thời gian (usage limit) để khóa Vault Apps.
+ * Trạng thái khóa Vault Apps hoàn toàn phụ thuộc vào CanonicalLockPolicy.
  */
+@Deprecated(
+    message = "Legacy POC-01 Usage Tracker. Do not use for Canonical Vault lock state.",
+    level = DeprecationLevel.WARNING
+)
 class UsageTracker(
     val clock: Clock = SystemClockImpl(),
     private val dataStore: DataStore<Preferences>? = null,

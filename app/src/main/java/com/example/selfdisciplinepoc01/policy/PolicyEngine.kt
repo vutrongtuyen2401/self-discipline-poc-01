@@ -19,13 +19,18 @@ enum class PolicyDecision {
 }
 
 /**
+ * LEGACY COMPONENT (POC-01):
  * Evaluates whether a package should be locked at the current moment
  * based on its configured schedule, daily time limit, and usage.
  *
- * Separation of concerns:
- * - PolicyEngine does NOT manage sessions or UI.
- * - PolicyEngine only answers: LOCK or ALLOW.
+ * CANONICAL ISOLATION (Phase 1A):
+ * PolicyEngine KHÔNG ĐƯỢC PHÉP làm nguồn chân lý (authority) cho Hệ thống Phong Ấn Dục Vọng.
+ * Đối với Vault Apps, CanonicalLockPolicy là nguồn chân lý duy nhất.
  */
+@Deprecated(
+    message = "Legacy POC-01 Technical Policy Engine. Do not use for Canonical Self-Discipline Vault logic.",
+    level = DeprecationLevel.WARNING
+)
 class PolicyEngine(
     private val targetRepository: TargetRepository,
     private val usageProvider: UsageProvider,

@@ -43,8 +43,13 @@ class HandlerScheduleScheduler(
 }
 
 /**
+ * LEGACY COMPONENT (POC-01):
  * Interface contract for ScheduleWatcher.
  */
+@Deprecated(
+    message = "Legacy POC-01 Schedule Watcher. Do not use for Canonical Self-Discipline.",
+    level = DeprecationLevel.WARNING
+)
 interface ScheduleWatcher {
     fun start()
     fun onForegroundChanged(packageName: String?)

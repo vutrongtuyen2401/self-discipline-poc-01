@@ -8,10 +8,19 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
+ * LEGACY COMPONENT (POC-01):
  * Pure, deterministic schedule evaluator.
  * Evaluates whether a given wall-clock timestamp falls within a TimeSchedule window,
  * and computes the next schedule transition boundary timestamp.
+ *
+ * CANONICAL ISOLATION (Phase 1A):
+ * Logic lịch trình cố định này thuộc POC-01 kỹ thuật, không đại diện cho cơ chế
+ * Chu kỳ (Cycle 04:00) hay Phong Ấn (Vault Lock) của MASTER SSOT.
  */
+@Deprecated(
+    message = "Legacy POC-01 Schedule Evaluator. Do not use for Canonical Self-Discipline rules.",
+    level = DeprecationLevel.WARNING
+)
 object ScheduleEvaluator {
 
     /**

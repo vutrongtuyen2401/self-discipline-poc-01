@@ -42,8 +42,16 @@ class HandlerLimitScheduler(
 }
 
 /**
+ * LEGACY COMPONENT (POC-01):
  * Interface contract for UsageLimitWatcher.
+ *
+ * CANONICAL ISOLATION (Phase 1A):
+ * Thuộc cơ chế giới hạn thời gian sử dụng POC-01. Không sử dụng cho Hệ thống Phong Ấn Dục Vọng.
  */
+@Deprecated(
+    message = "Legacy POC-01 Usage Limit Watcher. Do not use for Canonical Self-Discipline rules.",
+    level = DeprecationLevel.WARNING
+)
 interface UsageLimitWatcher {
     fun start()
     fun onForegroundChanged(packageName: String?)
