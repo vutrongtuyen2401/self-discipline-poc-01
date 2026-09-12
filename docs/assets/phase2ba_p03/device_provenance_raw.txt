@@ -1,0 +1,31 @@
+﻿=== RAW ADB DEVICE PROVENANCE ===
+Timestamp: 2026-09-12 16:51:26
+
+--- adb devices ---
+List of devices attached
+10CF3J1F3400238	device
+
+
+--- ro.product.model ---
+V2425A
+
+--- ro.build.version.release ---
+15
+
+--- ro.build.version.sdk ---
+35
+
+--- ro.build.display.id ---
+PD2425_A_15.0.18.8.W10.V000L1
+
+--- ro.product.device ---
+PD2425
+
+--- ro.vivo.os.version ---
+15.0
+
+--- ro.product.brand ---
+vivo
+
+--- ro.product.manufacturer ---
+vivo
