@@ -3,53 +3,65 @@ package com.example.selfdisciplinepoc01
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
+import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-
-import android.os.SystemClock
-import android.view.ViewTreeObserver
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
@@ -57,9 +69,9 @@ import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLoggerProvider
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
 import com.example.selfdisciplinepoc01.domain.canonical.task.CanonicalTask
 import com.example.selfdisciplinepoc01.domain.canonical.task.TaskCycleState
-import com.example.selfdisciplinepoc01.domain.canonical.task.TaskCycleStatus
 import com.example.selfdisciplinepoc01.domain.canonical.usecase.CompleteTaskUseCase
 import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalLockPolicy
+import com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -106,10 +118,10 @@ class LockScreenActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            CultivationTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFF060913) // Dark Cosmic Base
                 ) {
                     LockScreenContent(
                         targetPackage = targetPackageState,
@@ -280,9 +292,8 @@ class LockScreenActivity : ComponentActivity() {
         Log.d(TAG, "onStop (sessionId=$currentSessionId)")
         super.onStop()
         AppDetectorAccessibilityService.onLockScreenStopped(currentSessionId)
-        if (!isChangingConfigurations) {
-            finish()
-        }
+        // Lưu ý P0.3 / CORR-R04: Không gọi finish() ở đây để bảo toàn session hợp lệ,
+        // tránh race condition hoặc tự đóng LockScreenActivity khi màn hình tắt/xoay/mở dialog.
     }
 
     override fun onDestroy() {
@@ -337,6 +348,7 @@ fun LockScreenContent(
 
     var uiState by remember { mutableStateOf(SystemPanelUiState(packageName = targetPackage)) }
     var taskToConfirm by remember { mutableStateOf<CanonicalTask?>(null) }
+    var isCompleting by remember { mutableStateOf(false) }
 
     fun refreshState() {
         coroutineScope.launch {
@@ -372,7 +384,7 @@ fun LockScreenContent(
     }
 
     fun goToHomeScreen() {
-        Log.d(LockScreenActivity.TAG, "[EXIT] goToHomeScreen được gọi (BackHandler hoặc Button) -> Gửi intent CATEGORY_HOME, gọi onGoToHome() và finish()")
+        Log.d(LockScreenActivity.TAG, "[EXIT] goToHomeScreen -> Gửi intent CATEGORY_HOME, gọi onGoToHome() và finish()")
         onGoToHome()
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
@@ -393,236 +405,540 @@ fun LockScreenContent(
         activity?.finish()
     }
 
-    // Intercept Back button to navigate to Home screen, breaking the infinite back loop
+    // Chặn phím Back cứng / cử chỉ và điều hướng về Android Home theo SSOT
     BackHandler {
         Log.d(LockScreenActivity.TAG, "[BACK_PRESSED] Người dùng bấm nút Back cứng/cử chỉ trên LockScreenActivity")
         goToHomeScreen()
     }
 
-    // Confirmation Dialog khi Ký chủ self-reports hoàn thành nhiệm vụ theo SSOT
+    // Confirmation Dialog phong cách Tiên hiệp
     if (taskToConfirm != null) {
         val task = taskToConfirm!!
         AlertDialog(
-            onDismissRequest = { taskToConfirm = null },
+            onDismissRequest = {
+                if (!isCompleting) taskToConfirm = null
+            },
+            containerColor = Color(0xFF0F172A),
+            titleContentColor = Color(0xFF00E5FF),
+            textContentColor = Color(0xFFE2E8F0),
+            modifier = Modifier
+                .border(
+                    width = 1.5.dp,
+                    brush = Brush.horizontalGradient(
+                        listOf(Color(0xFF00E5FF), Color(0xFF7C4DFF))
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            shape = RoundedCornerShape(12.dp),
             title = {
-                Text(
-                    text = "Xác Nhận Hoàn Thành",
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "✦", color = Color(0xFF00E5FF), fontSize = 16.sp)
+                    Text(
+                        text = "XÁC NHẬN CÔNG ĐỨC",
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        fontSize = 17.sp
+                    )
+                }
             },
             text = {
-                Text(
-                    text = "Ký chủ xác nhận đã hoàn thành nhiệm vụ [${task.title}]?\n\nHệ thống tin tưởng sự tự giác và trung thực của Ký chủ để phá bỏ phong ấn.",
-                    lineHeight = 22.sp
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Ký chủ xác nhận đã hoàn thành nhiệm vụ:",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 13.sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0x2200E5FF), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, Color(0x4400E5FF), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = task.title,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF38BDF8),
+                            fontSize = 15.sp
+                        )
+                    }
+                    Text(
+                        text = "Hệ thống tin tưởng sự trung thực và tự giác của Ký chủ để kích hoạt giải trừ phong ấn linh lực.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B),
+                        lineHeight = 18.sp
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        if (isCompleting) return@Button
+                        isCompleting = true
                         coroutineScope.launch {
-                            val currentCycle = cycleRepo.getCurrentCycle()
-                            completeTaskUseCase(task.id, currentCycle.cycleId)
-                            taskToConfirm = null
-                            refreshState()
+                            try {
+                                val currentCycle = cycleRepo.getCurrentCycle()
+                                completeTaskUseCase(task.id, currentCycle.cycleId)
+                                taskToConfirm = null
+                                refreshState()
+                            } finally {
+                                isCompleting = false
+                            }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E5FF),
+                        contentColor = Color(0xFF090D16)
+                    ),
+                    shape = RoundedCornerShape(6.dp)
                 ) {
-                    Text("Xác nhận", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isCompleting) "ĐANG XÁC NHẬN..." else "XÁC NHẬN",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { taskToConfirm = null }) {
-                    Text("Hủy")
+                TextButton(
+                    onClick = { if (!isCompleting) taskToConfirm = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF94A3B8))
+                ) {
+                    Text("HỦY", fontWeight = FontWeight.SemiBold)
                 }
             }
         )
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Lock Badge Indicator
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .background(
-                        if (uiState.isUnlocked) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                        shape = CircleShape
+    // Background: Dark Cosmic + Cultivation Fog & Sealing Formation
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF0F172A),
+                        Color(0xFF080D1A),
+                        Color(0xFF04060E)
                     ),
-                contentAlignment = Alignment.Center
+                    center = Offset(500f, 900f),
+                    radius = 1200f
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Vẽ Đại Trận Phong Ấn (Ancient Sealing Formation) mờ ảo phía sau Panel
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerOffset = Offset(size.width / 2f, size.height / 2f)
+            val baseRadius = size.width * 0.42f
+
+            // Vòng tròn ngoài cùng
+            drawCircle(
+                color = Color(0x1500E5FF),
+                radius = baseRadius,
+                center = centerOffset,
+                style = Stroke(width = 1.5f)
+            )
+
+            // Vòng tròn nét đứt thứ hai
+            drawCircle(
+                color = Color(0x187C4DFF),
+                radius = baseRadius * 0.85f,
+                center = centerOffset,
+                style = Stroke(
+                    width = 1.5f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
+                )
+            )
+
+            // Vòng tròn trung tâm
+            drawCircle(
+                color = Color(0x1200E5FF),
+                radius = baseRadius * 0.65f,
+                center = centerOffset,
+                style = Stroke(width = 1f)
+            )
+
+            // Các tia định vị trận pháp (Cross runes)
+            drawLine(
+                color = Color(0x0C00E5FF),
+                start = Offset(centerOffset.x, centerOffset.y - baseRadius * 1.1f),
+                end = Offset(centerOffset.x, centerOffset.y + baseRadius * 1.1f),
+                strokeWidth = 1f
+            )
+            drawLine(
+                color = Color(0x0C00E5FF),
+                start = Offset(centerOffset.x - baseRadius * 1.1f, centerOffset.y),
+                end = Offset(centerOffset.x + baseRadius * 1.1f, centerOffset.y),
+                strokeWidth = 1f
+            )
+        }
+
+        // ============================================================
+        // TRỌNG TÂM TUYỆT ĐỐI: BẢNG HỆ THỐNG NHIỆM VỤ HÌNH CHỮ NHẬT Ở GIỮA
+        // ============================================================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.86f)
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(14.dp),
+                    spotColor = if (uiState.isUnlocked) Color(0xFF10B981) else Color(0xFF00E5FF),
+                    ambientColor = Color(0xFF7C4DFF)
+                )
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xF00A0F1D)) // Dark Translucent Obsidian
+                .border(
+                    width = 1.5.dp,
+                    brush = Brush.horizontalGradient(
+                        colors = if (uiState.isUnlocked) {
+                            listOf(Color(0xFF10B981), Color(0xFF34D399), Color(0xFF059669))
+                        } else {
+                            listOf(Color(0xFF00E5FF), Color(0xFF7C4DFF), Color(0xFF00B0FF))
+                        }
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .border(
+                    width = 0.5.dp,
+                    color = Color(0x33FFFFFF),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .padding(20.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // --- 1. HEADER CỦA BẢNG ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "✦",
+                        color = if (uiState.isUnlocked) Color(0xFF34D399) else Color(0xFF00E5FF),
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (uiState.isUnlocked) "【 PHONG ẤN ĐÃ GIẢI TRỪ 】" else "【 HỆ THỐNG NHIỆM VỤ 】",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (uiState.isUnlocked) Color(0xFF34D399) else Color(0xFF00E5FF),
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "✦",
+                        color = if (uiState.isUnlocked) Color(0xFF34D399) else Color(0xFF00E5FF),
+                        fontSize = 14.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = if (uiState.isUnlocked) "CÔNG ĐỨC VIÊN MÃN — LINH LỰC THÔNG SUỐT" else "BẢO KHỐ PHONG ẤN TRẬN PHÁP",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF94A3B8),
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Dải phân cách phát sáng
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
                         .background(
-                            if (uiState.isUnlocked) Color(0xFF2E7D32) else Color(0xFFC62828),
-                            shape = CircleShape
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    if (uiState.isUnlocked) Color(0x8834D399) else Color(0x8800E5FF),
+                                    Color.Transparent
+                                )
+                            )
                         )
                 )
-            }
 
-            Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = if (uiState.isUnlocked) "PHONG ẤN ĐÃ GIẢI TRỪ" else "BẢNG HỆ THỐNG — PHONG ẤN",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (uiState.isUnlocked) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Ứng dụng: ${uiState.appDisplayName}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (uiState.isUnlocked) {
-                // Trạng thái đã mở khóa
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFE8F5E9)
-                    )
+                // --- 2. PHẦN PHONG ẤN / LOCK STATUS ---
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0x1A0F172A), RoundedCornerShape(8.dp))
+                        .border(0.5.dp, Color(0x2238BDF8), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    // Seal Badge Icon
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(
+                                color = if (uiState.isUnlocked) Color(0x2210B981) else Color(0x22F43F5E),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (uiState.isUnlocked) Color(0xFF10B981) else Color(0xFFF43F5E),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "🎉 VIÊN MÃN CÔNG ĐỨC!",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1B5E20)
+                            text = if (uiState.isUnlocked) "✓" else "🔒",
+                            fontSize = 15.sp,
+                            color = if (uiState.isUnlocked) Color(0xFF10B981) else Color(0xFFF43F5E)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ký chủ đã hoàn thành đủ số nhiệm vụ tu luyện yêu cầu (${uiState.completedCount}/${uiState.requiredCount}). Phong ấn đã được dỡ bỏ.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF2E7D32),
-                            textAlign = TextAlign.Center,
-                            lineHeight = 22.sp
+                            text = if (uiState.isUnlocked) "ỨNG DỤNG ĐÃ ĐƯỢC GIẢI TRỪ" else "ỨNG DỤNG ĐANG BỊ PHONG ẤN",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (uiState.isUnlocked) Color(0xFF34D399) else Color(0xFFF43F5E),
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = uiState.appDisplayName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF8FAFC),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = { launchUnlockedApp() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2E7D32)
-                    )
-                ) {
-                    Text(
-                        text = "Vào Ứng Dụng",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                }
-            } else {
-                // Trạng thái đang bị khóa - Hiển thị nhiệm vụ cần hoàn thành theo SSOT
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                // --- 3. NỘI DUNG NHIỆM VỤ / TRẠNG THÁI KHÓA ---
+                if (uiState.isUnlocked) {
+                    // Trạng thái đã mở khóa thành công (Canonical Evaluator xác nhận)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0x1A10B981), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0x4410B981), RoundedCornerShape(8.dp))
+                            .padding(14.dp)
                     ) {
-                        if (uiState.totalRequiredTasks > 0) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
-                                text = "Tiến trình mở khóa: ${uiState.completedCount}/${uiState.requiredCount} nhiệm vụ",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "🎉 CÔNG ĐỨC VIÊN MÃN!",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF34D399)
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            val nextTask = uiState.pendingTasks.firstOrNull()
-                            if (nextTask != null) {
-                                Text(
-                                    text = "Nhiệm vụ phong ấn yêu cầu:",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = nextTask.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Button(
-                                    onClick = { taskToConfirm = nextTask },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFC62828)
-                                    )
-                                ) {
-                                    Text(
-                                        text = "Ta đã hoàn thành",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    )
-                                }
-                            }
-                        } else {
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = stringResource(id = R.string.lock_screen_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = "Ký chủ đã hoàn thành đủ số nhiệm vụ tu luyện yêu cầu (${uiState.completedCount}/${uiState.requiredCount}). Phong ấn đã hoàn toàn được dỡ bỏ.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
                                 textAlign = TextAlign.Center,
-                                lineHeight = 22.sp
+                                lineHeight = 18.sp
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Primary Action: Vào Ứng Dụng
+                    Button(
+                        onClick = { launchUnlockedApp() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            contentColor = Color(0xFF04060E)
+                        )
+                    ) {
+                        Text(
+                            text = "【 VÀO ỨNG DỤNG 】",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                } else {
+                    // Trạng thái đang bị khóa - Hiển thị nhiệm vụ cần hoàn thành theo SSOT
+                    val nextTask = uiState.pendingTasks.firstOrNull()
+
+                    if (nextTask != null) {
+                        // Khung Nhiệm Vụ Tu Luyện Cần Làm
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0x221E293B), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(8.dp))
+                                .padding(14.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "NHIỆM VỤ YÊU CẦU",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF94A3B8),
+                                        letterSpacing = 0.5.sp
+                                    )
+
+                                    // Badge Trạng thái
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0x33F43F5E), RoundedCornerShape(4.dp))
+                                            .border(0.5.dp, Color(0x66F43F5E), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "CHƯA HOÀN THÀNH",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFDA4AF)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = nextTask.title,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8),
+                                    lineHeight = 20.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // --- 4. TIẾN ĐỘ K / N ---
+                        if (uiState.totalRequiredTasks > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "TIẾN ĐỘ NHIỆM VỤ",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF94A3B8)
+                                )
+                                Text(
+                                    text = "${uiState.completedCount} / ${uiState.requiredCount}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00E5FF)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Thanh Progress Bar mảnh
+                            val progressRatio = if (uiState.requiredCount > 0) {
+                                (uiState.completedCount.toFloat() / uiState.requiredCount).coerceIn(0f, 1f)
+                            } else 0f
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color(0xFF1E293B))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = progressRatio)
+                                        .fillMaxHeight()
+                                        .background(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(Color(0xFF00E5FF), Color(0xFF3B82F6))
+                                            )
+                                        )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // --- 5. PRIMARY ACTION: 【 TA ĐÃ HOÀN THÀNH 】 ---
+                        Button(
+                            onClick = { taskToConfirm = nextTask },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00E5FF),
+                                contentColor = Color(0xFF060913)
+                            )
+                        ) {
+                            Text(
+                                text = "【 TA ĐÃ HOÀN THÀNH 】",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    } else {
+                        // Trường hợp không có task liên kết cụ thể
+                        Text(
+                            text = stringResource(id = R.string.lock_screen_message),
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedButton(
-                onClick = { goToHomeScreen() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.lock_screen_button_home),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
-                )
+                // --- 6. SECONDARY ACTION: 【 TRỞ VỀ HOME 】 ---
+                OutlinedButton(
+                    onClick = { goToHomeScreen() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(Color(0xFF334155), Color(0xFF1E293B))
+                        )
+                    )
+                ) {
+                    Text(
+                        text = "TRỞ VỀ HOME",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF94A3B8),
+                        letterSpacing = 0.5.sp
+                    )
+                }
             }
         }
     }

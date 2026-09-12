@@ -352,8 +352,9 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             )
         )
 
-        // A. If LockScreenActivity is ALREADY active and visible on screen, do NOT duplicate launch
-        if (isLockScreenVisible) {
+        // A. If LockScreenActivity is ALREADY active and visible on screen, do NOT duplicate launch,
+        // UNLESS the locked target package just took foreground from our own POC package (prevPkg == applicationContext.packageName)
+        if (isLockScreenVisible && prevPkg != applicationContext.packageName) {
             Log.w(
                 TAG,
                 "[DECISION: SKIP] BỎ QUA không launch. LockScreenActivity đang hiển thị trên màn hình (isLockScreenVisible=true)."
