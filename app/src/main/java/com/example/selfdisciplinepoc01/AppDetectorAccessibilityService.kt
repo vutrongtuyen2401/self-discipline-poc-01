@@ -105,6 +105,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
     private var lastForegroundPackage: String? = null
     private var lastLockLaunchTimestamp: Long = 0L
     private var isChromeLockedForCurrentTransition: Boolean = false
+    private var currentLockedTargetPackage: String? = null
     private var isLockScreenVisible: Boolean = false
     private var currentSessionId: Long = 0L
 
@@ -208,6 +209,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         val prevLocked = isChromeLockedForCurrentTransition
         isLockScreenVisible = false
         isChromeLockedForCurrentTransition = false
+        currentLockedTargetPackage = null
         lastLockLaunchTimestamp = 0L
         lastForegroundPackage = applicationContext.packageName
         Log.i(
@@ -232,6 +234,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         val prevLocked = isChromeLockedForCurrentTransition
         isLockScreenVisible = false
         isChromeLockedForCurrentTransition = false
+        currentLockedTargetPackage = null
         lastLockLaunchTimestamp = 0L
         lastForegroundPackage = applicationContext.packageName
         Log.i(
@@ -255,6 +258,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         val prevVisible = isLockScreenVisible
         isLockScreenVisible = false
         isChromeLockedForCurrentTransition = false
+        currentLockedTargetPackage = null
         lastLockLaunchTimestamp = 0L
         Log.d(
             TAG,
@@ -410,6 +414,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         val t2 = SystemClock.elapsedRealtimeNanos()
         val prevSessionState = isChromeLockedForCurrentTransition
         isChromeLockedForCurrentTransition = true
+        currentLockedTargetPackage = packageName
         lastForegroundPackage = packageName
         lastLockLaunchTimestamp = now
         currentSessionId++
@@ -431,9 +436,6 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
         // Step 4 Phase 07-B: Show BlockingShieldOverlay immediately upon LAUNCH decision
         blockingShieldOverlay?.show(t1, t2, launchSessionId, packageName)
-
-        // Đẩy ứng dụng bị khóa khỏi foreground về Android Home theo SSOT
-        performGlobalAction(GLOBAL_ACTION_HOME)
 
         val t3 = SystemClock.elapsedRealtimeNanos()
         val intent = Intent(this, LockScreenActivity::class.java).apply {
@@ -510,18 +512,23 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             // 1. Event belongs to this POC application itself
             if (packageName == applicationContext.packageName) {
                 val prevPkg = lastForegroundPackage
-                lastForegroundPackage = packageName
                 if (className.contains("LockScreenActivity")) {
+                    lastForegroundPackage = packageName
                     isLockScreenVisible = true
                     blockingShieldOverlay?.hide("self_pkg_lockscreen_active")
                     // LockScreen visible: stop target usage and cancel watchers
                     usageTracker.stopSession()
                     usageLimitWatcher.onForegroundChanged(null)
                     scheduleWatcher.onForegroundChanged(null)
+                } else {
+                    // Overlay Views (như BlockingShieldOverlay) không ghi đè mất ứng dụng đích đang bị khóa
+                    if (currentLockedTargetPackage != null) {
+                        lastForegroundPackage = currentLockedTargetPackage
+                    }
                 }
                 Log.d(
                     TAG,
-                    "[CHECK: SELF_PKG] Sự kiện từ POC app ($packageName, class=$className). lastForegroundPackage: '$prevPkg' -> '$packageName' | isLockScreenVisible=$isLockScreenVisible | isChromeLocked giữ nguyên: $isChromeLockedForCurrentTransition"
+                    "[CHECK: SELF_PKG] Sự kiện từ POC app ($packageName, class=$className). lastForegroundPackage: '$prevPkg' -> '$lastForegroundPackage' | isLockScreenVisible=$isLockScreenVisible | isChromeLocked giữ nguyên: $isChromeLockedForCurrentTransition"
                 )
                 logger.debug(
                     DiagnosticEvent(
@@ -581,6 +588,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
                 val prevLocked = isChromeLockedForCurrentTransition
                 lastForegroundPackage = packageName
                 isChromeLockedForCurrentTransition = false
+                currentLockedTargetPackage = null
                 isLockScreenVisible = false
                 lastLockLaunchTimestamp = 0L
 
@@ -674,7 +682,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         }
 
         fun getCurrentForegroundPackage(): String? {
+            if (instance?.isChromeLockedForCurrentTransition == true && instance?.currentLockedTargetPackage != null) {
+                return instance?.currentLockedTargetPackage
+            }
             return instance?.lastForegroundPackage
+        }
+
+        fun performHome(): Boolean {
+            val result = instance?.performGlobalAction(GLOBAL_ACTION_HOME) ?: false
+            Log.i(TAG, "[GLOBAL_ACTION_HOME] Triệu gọi performHome: result=$result")
+            return result
         }
     }
 }

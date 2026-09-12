@@ -302,6 +302,6 @@ class BlockingShieldOverlay(
 
     companion object {
         const val TAG = "BlockingShieldOverlay"
-        private const val SAFETY_TIMEOUT_MS = 2000L
+        private const val SAFETY_TIMEOUT_MS = 60000L
     }
 }

@@ -164,12 +164,19 @@ object CycleTransitionManager {
         if (evaluation.isVaultApp && evaluation.finalAction == EnforcementAction.LOCK) {
             Log.w(TAG, "[CYCLE_TRANSITION_0400] Ứng dụng '$fgPackage' bị phong ấn do bắt đầu chu kỳ mới mà chưa hoàn thành nhiệm vụ! Kích hoạt push-to-Home và System Panel.")
 
-            // Push to Home
+            // Push to Home: phối hợp cả AccessibilityService.performHome() và Intent CATEGORY_HOME
+            val pushedHome = AppDetectorAccessibilityService.performHome()
+            Log.i(TAG, "[CYCLE_TRANSITION_0400] Push to Home via AccessibilityService: $pushedHome")
+
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            context.startActivity(homeIntent)
+            try {
+                context.startActivity(homeIntent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Lỗi khi startActivity homeIntent: ${e.message}")
+            }
 
             // Khởi chạy System Panel / LockScreenActivity
             val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
@@ -177,7 +184,11 @@ object CycleTransitionManager {
                 putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, fgPackage)
                 putExtra(LockScreenActivity.EXTRA_SESSION_ID, System.currentTimeMillis())
             }
-            context.startActivity(lockIntent)
+            try {
+                context.startActivity(lockIntent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Lỗi khi startActivity lockIntent: ${e.message}")
+            }
         }
     }
 
