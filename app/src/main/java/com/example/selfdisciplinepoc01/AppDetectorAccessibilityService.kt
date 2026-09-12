@@ -432,18 +432,20 @@ class AppDetectorAccessibilityService : AccessibilityService() {
         // Step 4 Phase 07-B: Show BlockingShieldOverlay immediately upon LAUNCH decision
         blockingShieldOverlay?.show(t1, t2, launchSessionId, packageName)
 
+        // Đẩy ứng dụng bị khóa khỏi foreground về Android Home theo SSOT
+        performGlobalAction(GLOBAL_ACTION_HOME)
+
         val t3 = SystemClock.elapsedRealtimeNanos()
         val intent = Intent(this, LockScreenActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra(LockScreenActivity.EXTRA_SESSION_ID, launchSessionId)
             putExtra(LockScreenActivity.EXTRA_T1_NS, t1)
             putExtra(LockScreenActivity.EXTRA_T2_NS, t2)
             putExtra(LockScreenActivity.EXTRA_T3_NS, t3)
             putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, packageName)
         }
-        val options = android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle()
         try {
-            startActivity(intent, options)
+            startActivity(intent)
             Log.i(
                 TAG,
                 "[LAUNCH: REQUEST_COMPLETED] startActivity() đã gửi request thành công sang ActivityTaskManager (sessionId=$launchSessionId, reason=$reason)"

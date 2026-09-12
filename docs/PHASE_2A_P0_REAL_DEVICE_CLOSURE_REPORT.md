@@ -7,9 +7,13 @@
 
 - **Tên Phase**: Phase 2A — P0 Real Device Validation Closure
 - **Dự án**: `self-discipline-poc-01`
-- **Mục tiêu**: Đóng toàn bộ các hạng mục P0 còn thiếu của Phase 2A bằng bằng chứng kiểm thử thực tế trên thiết bị vật lý, tuân thủ nguyên tắc tối thượng **"NO TEST, NO PASS"**.
-- **Kết quả nghiệm thu**: **100% P0 ĐÃ ĐƯỢC ĐÓNG THÀNH CÔNG**.
-- **Final Verdict**: **`P0 CLOSED`**.
+- **Mục tiêu**: Xác minh các hạng mục P0 của Phase 2A bằng kiểm thử trên thiết bị vật lý theo nguyên tắc tối thượng **"NO TEST, NO PASS"**.
+- **Phạm vi kiểm thử thực tế trong báo cáo này**:
+  - P0-1: Đã chứng minh **framework AlarmManager callback path thật** trên thiết bị vật lý qua test delay 4-5s với cùng PendingIntent/BroadcastReceiver.
+  - P0-2: Đã chứng minh callback kích hoạt enforcement đẩy Chrome về Home và mở System Panel (thực hiện qua test delay alarm). *Lưu ý: Actual physical 04:00 wall-clock rollover được chuyển giao và đóng đầy đủ trong Phase 2A-P0.1.*
+  - P0-3: Đã chứng minh Blocking Shield và LockScreenActivity xuất hiện. *Lưu ý: Kiểm thử hành vi tương tác sâu (tap/swipe no touch-through) được đóng bằng chứng vật lý trong Phase 2A-P0.1.*
+  - P0-4: Đã chứng minh **Reboot thật trên thiết bị vật lý** với `BOOT_COMPLETED`, hòa giải chu kỳ không replay.
+- **Trạng thái**: Báo cáo này ghi nhận kết quả kiểm thử đợt 1. Các khoảng trống bằng chứng còn lại được chuyển giao đóng dứt điểm tại `PHASE_2A_P0_1_FINAL_EVIDENCE_CLOSURE_REPORT.md`.
 
 ---
 
@@ -48,13 +52,13 @@ Báo cáo tuân thủ nghiêm ngặt theo thứ bậc nguồn chân lý:
 
 ---
 
-## 4. P0 Evidence Ledger (Full Matrix)
+## 4. P0 Evidence Ledger (Giai đoạn P0 ban đầu)
 
-| Nhóm P0 | Mô Tả Yêu Cầu | Tiêu Chí Kiểm Tra (Expected) | Bằng Chứng Thực Tế (Observed) | Trạng Thái |
+| Nhóm P0 | Mô Tả Yêu Cầu | Tiêu Chí Kiểm Tra (Expected) | Bằng Chứng Thực Tế (Observed) | Trạng Thái Giai Đoạn Này |
 | :--- | :--- | :--- | :--- | :---: |
-| **P0-1** | Actual AlarmManager Callback | Callback thật từ framework vào `CycleBroadcastReceiver`; có dumpsys alarm; không notification/sound/rung | Callback nổ qua `RTC_WAKEUP`; dumpsys alarm ghi nhận `origWhen 1789160400000`; `dumpsys notification` sạch | **PASS** |
-| **P0-2** | 04:00 Boundary + Foreground Locked App $\to$ Home | Seed Canonical Locked state cho Vault App; mở app foreground tại boundary; đẩy về Android Home + System Panel | Chrome ở foreground khi boundary callback nổ $\to$ đẩy về Home + mở `LockScreenActivity`; không notification | **PASS** |
-| **P0-3** | Blocking System Panel Boundary | Mở app bị khóa; hiển thị blocking UI; không touch-through; Back $\to$ Home | Mở Chrome $\to$ `BlockingShieldOverlay` mờ trắng $\to$ `LockScreenActivity` hiển thị UI khóa; Back $\to$ Launcher | **PASS** |
+| **P0-1** | Production AlarmManager Callback Path | Callback thật từ framework vào `CycleBroadcastReceiver`; có dumpsys alarm; không notification/sound/rung | Callback nổ qua `RTC_WAKEUP` (test delay seam); dumpsys alarm ghi nhận `origWhen 1789160400000`; `dumpsys notification` sạch | **PASS (Callback Path)** |
+| **P0-2** | Boundary Callback + Foreground Locked App $\to$ Home | Seed Canonical Locked state cho Vault App; mở app foreground; đẩy về Android Home + System Panel khi callback nổ | Chrome ở foreground khi boundary callback nổ $\to$ đẩy về Home + mở `LockScreenActivity`; không notification | **PASS (Callback Path)** |
+| **P0-3** | Blocking System Panel Boundary | Mở app bị khóa; hiển thị blocking UI; Back $\to$ Home | Mở Chrome $\to$ `BlockingShieldOverlay` mờ trắng $\to$ `LockScreenActivity` hiển thị UI khóa; Back $\to$ Launcher | **PASS (Visual Overlay)** |
 | **P0-4** | Actual Reboot $\to$ BOOT_COMPLETED $\to$ Reconcile | `adb reboot` thiết bị thật; bắt `ACTION_BOOT_COMPLETED`; reconcile chu kỳ không replay; hẹn lịch 04:00 tiếp theo | Thiết bị reboot thật; logcat nhận `BOOT_COMPLETED`; reconcile chu kỳ `2026-09-11`; dumpsys alarm tái lập lịch | **PASS** |
 
 ---
@@ -239,6 +243,7 @@ Các mục kỹ thuật mở (OPEN-001, OPEN-002, OPEN-003) tiếp tục đượ
 ---
 
 ## 14. Final Verdict
-
-# **`P0 CLOSED`**
-Tất cả 4 nhóm kiểm thử P0 bắt buộc trên thiết bị vật lý `vivo iQOO Neo 10` (Android 15 / OriginOS 15) đã hoàn thành xuất sắc và có đầy đủ bằng chứng cụ thể.
+ 
+# **`PASS WITH CONDITIONS (PROCEED TO P0.1 FINAL CLOSURE)`**
+- Các hạng mục cốt lõi của Phase 2A (Reboot recovery, Exact Alarm scheduling, Callback execution, Blocking UI creation) đã được kiểm chứng trực tiếp trên thiết bị vật lý `vivo iQOO Neo 10`.
+- Các evidence gap về actual 04:00 boundary rollover, behavioral no touch-through, notification/sound/vibration isolation, và security hardening `LockScreenActivity exported=false` được giải quyết triệt để và nghiệm thu tối hậu tại `docs/PHASE_2A_P0_1_FINAL_EVIDENCE_CLOSURE_REPORT.md`.

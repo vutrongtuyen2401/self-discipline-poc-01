@@ -32,7 +32,7 @@
 
         <activity
             android:name=".LockScreenActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop"
             android:theme="@style/Theme.SelfDisciplinePoc01.LockScreen" />
 
