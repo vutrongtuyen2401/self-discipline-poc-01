@@ -1,0 +1,32 @@
+=== RAW DEVICE PROVENANCE ===
+Command: adb devices
+List of devices attached
+10CF3J1F3400238	device
+
+Command: adb shell getprop ro.product.brand
+vivo
+
+Command: adb shell getprop ro.product.manufacturer
+vivo
+
+Command: adb shell getprop ro.product.model
+V2425A
+
+Command: adb shell getprop ro.product.device
+PD2425
+
+Command: adb shell getprop ro.build.version.release
+15
+
+Command: adb shell getprop ro.build.version.sdk
+35
+
+Command: adb shell getprop ro.build.display.id
+PD2425_A_15.0.18.8.W10.V000L1
+
+Command: adb shell getprop ro.vivo.os.version
+15.0
+
+Authoritative Serial: 10CF3J1F3400238 (16 characters, ending with '8')
+Discrepancy Note: Earlier reports inadvertently truncated the trailing digit '8' as '10CF3J1F340023'. The physical serial observed via adb devices is 10CF3J1F3400238.
+Timestamp: 2026-09-12T17:56:22+07:00

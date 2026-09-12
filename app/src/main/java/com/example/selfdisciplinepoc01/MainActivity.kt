@@ -126,14 +126,52 @@ class MainActivity : ComponentActivity() {
         val queryVaultApp = intent?.getStringExtra("EXTRA_CANONICAL_QUERY_VAULT_APP")
         val addVoucherPkg = intent?.getStringExtra("EXTRA_CANONICAL_ADD_VOUCHER_PKG")
 
+        // Phase 2C Specific Test Seams
+        val seedCycleCompletion = intent?.getStringExtra("EXTRA_CANONICAL_SEED_CYCLE_COMPLETION") // format: "taskId|cycleId"
+        val triggerBoundary = intent?.getBooleanExtra("EXTRA_CANONICAL_TRIGGER_BOUNDARY", false) ?: false
+        val triggerReconcile = intent?.getBooleanExtra("EXTRA_CANONICAL_RECONCILE", false) ?: false
+        val launchLockScreenPkg = intent?.getStringExtra("EXTRA_CANONICAL_LAUNCH_LOCK_SCREEN")
+
+        if (launchLockScreenPkg != null) {
+            val lockIntent = android.content.Intent(this, LockScreenActivity::class.java).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, launchLockScreenPkg)
+                putExtra(LockScreenActivity.EXTRA_SESSION_ID, System.currentTimeMillis())
+            }
+            startActivity(lockIntent)
+            android.util.Log.i("CanonicalTestSeam", "[LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for $launchLockScreenPkg")
+        }
+
+        if (triggerBoundary) {
+            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.onCycleBoundaryReached(applicationContext)
+            android.util.Log.i("CanonicalTestSeam", "[CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from intent")
+        }
+
+        if (triggerReconcile) {
+            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
+            android.util.Log.i("CanonicalTestSeam", "[CYCLE_RECONCILE_TRIGGERED] reconcileCycleOnStartup executed manually from intent")
+        }
+
         if (seedLockPkg != null || seedUnlockPkg != null || clearCanonicalData || evalPkg != null ||
             vaultAddPkg != null || vaultRemovePkg != null || linkTaskApp != null || unlinkTaskApp != null ||
-            queryVaultApp != null || addVoucherPkg != null) {
+            queryVaultApp != null || addVoucherPkg != null || seedCycleCompletion != null) {
             lifecycleScope.launch {
                 val vaultRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getVaultRepository(applicationContext)
                 val taskRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getTaskRepository(applicationContext)
                 val lockEvaluator = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getLockEvaluator(applicationContext)
                 val adapter = com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(applicationContext)
+
+                if (seedCycleCompletion != null) {
+                    val parts = seedCycleCompletion.split("|")
+                    if (parts.size == 2) {
+                        val taskId = parts[0].trim()
+                        val cycleIdStr = parts[1].trim()
+                        val now = java.time.Instant.now()
+                        taskRepo.completeTask(taskId, com.example.selfdisciplinepoc01.domain.canonical.cycle.CanonicalCycleId(cycleIdStr), now)
+                        adapter.recomputeSnapshot()
+                        android.util.Log.i("CanonicalTestSeam", "[SEED_CYCLE_COMPLETION] Đã đánh dấu hoàn thành Task '$taskId' trong chu kỳ '$cycleIdStr'")
+                    }
+                }
 
                 if (vaultAddPkg != null) {
                     val now = java.time.Instant.now()

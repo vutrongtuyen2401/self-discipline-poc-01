@@ -112,15 +112,43 @@ object CycleTransitionManager {
         }
     }
 
+    private var lastTransitionEpochMillis: Long = 0L
+    private var lastTransitionCycleId: String? = null
+
+    /**
+     * Reset idempotency guard phục vụ kiểm thử tự động.
+     */
+    fun resetIdempotencyGuardForTest() {
+        lastTransitionEpochMillis = 0L
+        lastTransitionCycleId = null
+    }
+
     /**
      * Xử lý khi chạm mốc 04:00:00 thời gian thực.
+     * Đảm bảo tính Idempotent: nếu callback nổ nhiều lần trong cửa sổ hẹp,
+     * chỉ thực thi transition một lần duy nhất.
      */
+    @Synchronized
     fun onCycleBoundaryReached(
         context: Context,
         now: Instant = Instant.now(),
         zoneId: ZoneId = ZoneId.systemDefault()
     ) {
         val currentBoundary = CycleEngine.getCurrentCycleBoundary(now, zoneId)
+        val cycleIdStr = currentBoundary.cycleId.dateIdentifier
+        val nowMillis = now.toEpochMilli()
+
+        Log.i(TAG, "[CYCLE_BOUNDARY_TRIGGER] AlarmManager callback tại $now (zone=$zoneId, targetCycle=$cycleIdStr)")
+
+        // Idempotency check: nếu vừa transition cho cùng cycleId trong vòng 3000ms
+        if (cycleIdStr == lastTransitionCycleId && (nowMillis - lastTransitionEpochMillis) < 3000L) {
+            Log.w(TAG, "[IDEMPOTENT_SUPPRESS] Bỏ qua callback lặp lại cho chu kỳ $cycleIdStr (cách lần trước ${nowMillis - lastTransitionEpochMillis}ms)")
+            return
+        }
+
+        lastTransitionEpochMillis = nowMillis
+        lastTransitionCycleId = cycleIdStr
+
         Log.i(TAG, "[CYCLE_TRANSITION_0400] Đã chạm mốc chu kỳ mới: ${currentBoundary.cycleId}. Cập nhật snapshot in-memory...")
 
         // 1. Áp dụng toàn bộ cấu hình phần thưởng chờ (Pending Next Cycle) và cập nhật snapshot in-memory
@@ -160,16 +188,16 @@ object CycleTransitionManager {
             return
         }
 
-        // Đánh giá trạng thái của foreground app trong chu kỳ mới
+        // Đánh giá trạng thái của foreground app trong chu kỳ mới qua CanonicalLockEvaluator
         val evaluation = adapter.evaluateSync(fgPackage)
-        Log.i(TAG, "[CYCLE_TRANSITION_0400] Đánh giá foreground app '$fgPackage': finalAction=${evaluation.finalAction}, reason=${evaluation.reason}")
+        Log.i(TAG, "[CYCLE_EVALUATOR_RESULT] Đánh giá foreground app '$fgPackage': finalAction=${evaluation.finalAction}, reason=${evaluation.reason}, isVaultApp=${evaluation.isVaultApp}")
 
         if (evaluation.isVaultApp && evaluation.finalAction == EnforcementAction.LOCK) {
-            Log.w(TAG, "[CYCLE_TRANSITION_0400] Ứng dụng '$fgPackage' bị phong ấn do bắt đầu chu kỳ mới mà chưa hoàn thành nhiệm vụ! Kích hoạt push-to-Home và System Panel.")
+            Log.w(TAG, "[CYCLE_ACTION_HOME] Ứng dụng '$fgPackage' bị phong ấn trong chu kỳ mới! Kích hoạt push-to-Home và System Panel.")
 
             // Push to Home: phối hợp cả AccessibilityService.performHome() và Intent CATEGORY_HOME
             val pushedHome = AppDetectorAccessibilityService.performHome()
-            Log.i(TAG, "[CYCLE_TRANSITION_0400] Push to Home via AccessibilityService: $pushedHome")
+            Log.i(TAG, "[CYCLE_ACTION_HOME] Push to Home via AccessibilityService: $pushedHome")
 
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -181,7 +209,8 @@ object CycleTransitionManager {
                 Log.w(TAG, "Lỗi khi startActivity homeIntent: ${e.message}")
             }
 
-            // Khởi chạy System Panel / LockScreenActivity
+            // Khởi chạy System Panel / LockScreenActivity (không notification, không rung, không sound)
+            Log.i(TAG, "[CYCLE_SYSTEM_PANEL_LAUNCH] Hiển thị System Panel (LockScreenActivity) cho package '$fgPackage'")
             val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, fgPackage)
@@ -198,6 +227,7 @@ object CycleTransitionManager {
     /**
      * Hòa giải chu kỳ sau khi khởi động máy (Boot), App Process Restart, Offline dài hạn hoặc thay đổi Timezone.
      */
+    @Synchronized
     fun reconcileCycleOnStartup(
         context: Context,
         now: Instant = Instant.now(),
@@ -205,6 +235,9 @@ object CycleTransitionManager {
     ) {
         val currentBoundary = CycleEngine.getCurrentCycleBoundary(now, zoneId)
         Log.i(TAG, "[RECONCILE] Khởi động / Hòa giải: Nhảy trực tiếp tới chu kỳ hiện tại ${currentBoundary.cycleId} (Zone: $zoneId). Không replay lịch sử.")
+
+        lastTransitionCycleId = currentBoundary.cycleId.dateIdentifier
+        lastTransitionEpochMillis = now.toEpochMilli()
 
         val adapter = TaskAppEnforcementAdapterProvider.getAdapter(context)
         try {
