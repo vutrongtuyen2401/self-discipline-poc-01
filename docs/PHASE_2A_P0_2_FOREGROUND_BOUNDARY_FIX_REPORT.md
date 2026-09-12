@@ -1,4 +1,5 @@
 # BÁO CÁO NGHIỆM THU PHASE 2A-P0.2 — 04:00 FOREGROUND LOCK BOUNDARY FIX & EVIDENCE
+*(CẬP NHẬT CHUẨN HÓA SSOT FORMULA & AUDIT BẰNG CHỨNG PHẦN CỨNG)*
 
 > **Quy chuẩn thực thi:** Strict NO TEST, NO PASS / Physical Real Device Evidence Only.  
 > **Mục tiêu micro-phase:** Khắc phục triệt để và khép kín chứng cứ phần cứng cho blocker duy nhất còn lại của Phase 2A P0: Tại chính thời điểm 04:00 local device time, một Vault App đang LOCKED (`com.android.chrome`) phải thực sự ở foreground; sau đó production cycle-boundary handler phải phát hiện trạng thái đó và thực hiện đúng hành vi biên SSOT (đẩy app ra khỏi foreground về Android Home / System Panel).
@@ -56,8 +57,28 @@ Phân tích nhật ký logcat chi tiết theo mili-giây tại lần chạy trư
 3. **`app/src/main/java/com/example/selfdisciplinepoc01/overlay/BlockingShieldOverlay.kt`**:
    - Điều chỉnh `SAFETY_TIMEOUT_MS` từ `2000L` lên `60000L` (60 giây) nhằm đảm bảo lớp bảo vệ che chắn không bị tự thu hồi trong thời gian chờ đồng hồ trôi qua mốc 04:00.
 
-### 3.2 Tuân thủ SSOT
-- Không thay đổi bất kỳ quy tắc nghiệp vụ nào của `CanonicalLockPolicy`, `CanonicalLockEvaluator` hay công thức $Required(N) = \lceil N/2 \rceil$.
+### 3.2 Tuân thủ SSOT tuyệt đối về công thức khóa
+- **Công thức chuẩn SSOT:**
+  Với $N > 0$:
+  $$Required(N) = \left\lceil \frac{2N}{3} \right\rceil$$
+  Đặc xá khởi đầu theo MASTER SSOT:
+  $$N = 2 \implies Required(2) = 1$$
+  Trường hợp $N = 0$:
+  $$N = 0 \implies Required(0) = 0 \quad (\text{UNLOCKED})$$
+  Bảng ánh xạ chuẩn hóa:
+  | $N$ | $Required(N)$ | Trạng thái mặc định ($K=0$) |
+  | :-: | :-----------: | :--------------------------: |
+  | $0$ | $0$ | **UNLOCKED** |
+  | $1$ | $1$ | LOCKED |
+  | $2$ | $1$ (Đặc xá khởi đầu) | LOCKED |
+  | $3$ | $2$ | LOCKED |
+  | $4$ | $3$ | LOCKED |
+  | $5$ | $4$ | LOCKED |
+  | $6$ | $4$ | LOCKED |
+  | $N > 6$ | $\lceil 2N/3 \rceil$ | LOCKED |
+- **Quy tắc phán quyết:**
+  - **LOCKED** khi và chỉ khi: $K < Required(N)$ VÀ không có voucher còn hiệu lực.
+  - **UNLOCKED** khi: $K \ge Required(N)$ HOẶC có voucher còn hiệu lực.
 - Đảm bảo đúng nguyên lý SSOT: Ứng dụng bị khóa được duy trì trạng thái foreground dưới sự giám sát cho đến đúng thời điểm 04:00:00, và chính **Production Boundary Handler** là tác nhân duy nhất thực thi việc đẩy app ra khỏi foreground.
 
 ---
@@ -72,7 +93,7 @@ Phân tích nhật ký logcat chi tiết theo mili-giây tại lần chạy trư
 | **04:00:00 Boundary** | AlarmManager callback nổ | AlarmManager callback nổ |
 | **Phát hiện tại 04:00** | `fgPackage = com.bbk.launcher2` (Bỏ qua) ❌ | `fgPackage = com.android.chrome` (Phát hiện chuẩn xác!) ✅ |
 | **Boundary Action** | Không có hành vi đẩy app vì đã ở Home từ trước | `CycleTransitionManager` kích hoạt `performHome()` & System Panel ✅ |
-| **Sau Boundary** | Đã ở Home từ T - 9s | Chrome bị đẩy khỏi foreground $\to$ Home / System Panel ✅ |
+| **Sau Boundary** | Đã ở Home từ T - 9s | Chrome bị đẩy khỏi foreground $\to$ System Panel $\to$ Back $\to$ Home ✅ |
 
 ---
 
@@ -175,11 +196,11 @@ Trích xuất từ `scratch/logcat_p0_2_boundary_utf8.txt`:
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **P0.2-1** | Real Device | Chrome LOCKED precondition ($N=1, K=0$) | Adapter thẩm định `action=LOCK, reason=LOCKED_INSUFFICIENT_TASKS, isVaultApp=true` | Logcat line 51 | **PASS** |
 | **P0.2-2** | Real Device | Chrome foreground before boundary | Tại 03:59:53, `topResumedActivity` và `mCurrentFocus` là `com.android.chrome` | `dumpsys activity`, `screen_p0_2_chrome_fg_before_0400.png` | **PASS** |
-| **P0.2-3** | Real Device | Continuous foreground trace | Chrome duy trì foreground liên tục từ 03:59:50 đến 04:00:00, không bị văng về Home | Logcat line 49-121, `dumpsys` | **PASS** |
+| **P0.2-3** | Real Device | Continuous foreground trace | Chrome được xác nhận là foreground trước boundary bằng dumpsys; trace không ghi nhận event chuyển Chrome → Launcher trước 04:00; tại 04:00 CycleTransitionManager trực tiếp phát hiện com.android.chrome là foreground. | Logcat line 49-121, `dumpsys` | **PASS** |
 | **P0.2-4** | Real Device | Actual 04:00 AlarmManager callback | AlarmManager callback nổ tại 04:00:00.016 với action `ACTION_CYCLE_TRANSITION_0400` | Logcat line 118 | **PASS** |
 | **P0.2-5** | Real Device | Chrome foreground at boundary | `CycleTransitionManager` phát hiện foreground app tại mốc 04:00: `'com.android.chrome'` | Logcat line 121 | **PASS** |
 | **P0.2-6** | Real Device | Boundary handler invoked | `onCycleBoundaryReached` đánh giá `com.android.chrome` cần LOCK và kích hoạt transition | Logcat line 122-123 | **PASS** |
-| **P0.2-7** | Real Device | Chrome $\to$ Home caused by boundary | Tại 04:00:00.033 gọi `performHome: result=true`, surface của Chrome bị hủy | Logcat line 124-125, line 155-156 | **PASS** |
+| **P0.2-7** | Real Device | Chrome $\to$ Home caused by boundary | Chrome foreground → 04:00 boundary → production boundary handler → Home action → System Panel foreground. Sau đó: Back → Android Home. | Logcat line 124-125, line 155-156 | **PASS** |
 | **P0.2-8** | Real Device | System Panel boundary | System Panel (`LockScreenActivity`) hiển thị bao phủ toàn màn hình tại 04:00 | Logcat line 128, `screen_p0_2_home_after_boundary.png` | **PASS** |
 | **P0.2-9** | Real Device | No touch-through | Tap vào tọa độ (500, 1000) không xuyên vào Chrome bên dưới; focus giữ nguyên | `dumpsys` focus trước và sau tap | **PASS** |
 | **P0.2-10** | Real Device | Back $\to$ Home | Nhấn phím Back đưa focus trực tiếp về `com.bbk.launcher2/.Launcher` | `dumpsys` focus, `screen_p0_2_home_after_back.png` | **PASS** |
@@ -189,58 +210,88 @@ Trích xuất từ `scratch/logcat_p0_2_boundary_utf8.txt`:
 
 ---
 
-## 7. CÁC HẠNG MỤC CHƯA XÁC MINH VẬT LÝ (19.6 REMAINING UNVERIFIED)
+## 7. HIỆU LỰC BẰNG CHỨNG PHẦN CỨNG SAU AUDIT (19.6 PHYSICAL EVIDENCE VALIDITY)
+
+> **Xác nhận tính hiệu lực pháp y:**  
+> `Previous physical evidence remains applicable because the correction did not modify the boundary runtime path.`
+
+* **Cơ sở xác nhận:** 
+  1. Kiểm thử phần cứng thực tế P0.2 chạy với tiền điều kiện: $N = 1, K = 0$.
+  2. Tại $N = 1$: Theo công thức chuẩn SSOT $Required(1) = \lceil 2(1)/3 \rceil = 1$. Đồng thời công thức integer cũ $\lceil 1/2 \rceil = 1$ cũng cho cùng kết quả $Required = 1$.
+  3. Trạng thái thẩm định của Chrome tại thời điểm trước và tại mốc 04:00 hoàn toàn là `LOCKED` với $Required = 1$, không bị thay đổi bởi việc hiệu chỉnh tài liệu và kiểm thử formula.
+  4. Mã nguồn xử lý boundary callback (`CycleTransitionManager.kt`, `AppDetectorAccessibilityService.kt`) không có bất kỳ thay đổi nào trong đợt audit này.
+  5. Do đó, toàn bộ chuỗi chứng cứ phần cứng (logcat callback, dumpsys, screenshots) thu thập trực tiếp từ thiết bị `10CF3J1F3400238` **hoàn toàn nguyên vẹn giá trị nghiệm thu thực tế**.
+
+---
+
+## 8. MA TRẬN KIỂM THỬ BỔ SUNG CÔNG THỨC SSOT (SECTION 15 TEST EVIDENCE MATRIX)
+
+Bộ kiểm thử tự động chuyên biệt [`CanonicalLockFormulaAndAcceptanceTest.kt`](file:///c:/Code/self-discipline-poc-01/app/src/test/java/com/example/selfdisciplinepoc01/domain/canonical/vault/CanonicalLockFormulaAndAcceptanceTest.kt) đã được thực thi thực tế qua Gradle:
+
+| Test ID | Environment | Exact Action | Actual Result | Evidence | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **FORMULA-0** | Automated | `calculateRequiredCompletions(0)` | `0` (UNLOCKED) | Test output: PASSED | **PASS** |
+| **FORMULA-1** | Automated | `calculateRequiredCompletions(1)` | `1` | Test output: PASSED | **PASS** |
+| **FORMULA-2** | Automated | `calculateRequiredCompletions(2)` | `1` (Đặc xá khởi đầu theo SSOT) | Test output: PASSED | **PASS** |
+| **FORMULA-3** | Automated | `calculateRequiredCompletions(3)` | `2` | Test output: PASSED | **PASS** |
+| **FORMULA-4** | Automated | `calculateRequiredCompletions(4)` | `3` | Test output: PASSED | **PASS** |
+| **FORMULA-5** | Automated | `calculateRequiredCompletions(5)` | `4` | Test output: PASSED | **PASS** |
+| **FORMULA-6** | Automated | `calculateRequiredCompletions(6)` | `4` | Test output: PASSED | **PASS** |
+| **FORMULA-7** | Automated | `calculateRequiredCompletions(7)` | `5` ($\lceil 2\times 7 / 3 \rceil$) | Test output: PASSED | **PASS** |
+| **FORMULA-8** | Automated | `calculateRequiredCompletions(8)` | `6` ($\lceil 2\times 8 / 3 \rceil$) | Test output: PASSED | **PASS** |
+| **FORMULA-9** | Automated | `calculateRequiredCompletions(9)` | `6` ($\lceil 2\times 9 / 3 \rceil$) | Test output: PASSED | **PASS** |
+| **LOCK-0** | Automated | Case A: $N=0, K=0$ | `isUnlocked = true`, `decision = UNLOCKED` | Test output: PASSED | **PASS** |
+| **LOCK-1** | Automated | Case B: $N=1, K=0$ | `isLocked = true`, `decision = LOCKED` | Test output: PASSED | **PASS** |
+| **LOCK-2** | Automated | Case D: $N=2, K=0$ | `isLocked = true`, `required = 1` | Test output: PASSED | **PASS** |
+| **LOCK-3** | Automated | Case F: $N=3, K=1$ | `isLocked = true`, `required = 2` | Test output: PASSED | **PASS** |
+| **LOCK-4** | Automated | Case H: $N=4, K=2$ | `isLocked = true`, `required = 3` | Test output: PASSED | **PASS** |
+| **LOCK-V** | Automated | Case J: Effective voucher | `isUnlocked = true` (Voucher đè bẹp điều kiện khóa) | Test output: PASSED | **PASS** |
+| **LOCK-R** | Automated | Case K: Rewardless tasks only | `isUnlocked = true` (Mẫu số $N=0$) | Test output: PASSED | **PASS** |
+| **P0.2-PHYSICAL** | Real Device | 04:00 boundary with locked Chrome | Chrome fg $\to$ 04:00 callback $\to$ boundary handler $\to$ System Panel $\to$ Back $\to$ Home | `docs/screen_p0_2_*.png`, `scratch/logcat_p0_2_boundary_utf8.txt` | **PASS** |
+
+---
+
+## 9. CÁC HẠNG MỤC CHƯA XÁC MINH VẬT LÝ (19.6 REMAINING UNVERIFIED)
 
 Theo nguyên tắc "Strict NO TEST, NO PASS / Không suy luận từ mã nguồn":
 1. **P0.2-12 (Vibration):** Đã kiểm tra tĩnh toàn bộ mã nguồn không gọi `Vibrator` hay bất kỳ API rung nào trong gói cycle boundary. Tuy nhiên, do môi trường kiểm thử từ xa qua ADB không trang bị cảm biến gia tốc phần cứng ngoài máy để đo độ rung cơ học, mục này được ghi nhận trung thực là **UNVERIFIED**.
 2. **P0.2-13 (Sound):** Đã kiểm tra tĩnh toàn bộ mã nguồn không gọi `MediaPlayer`, `SoundPool` hay `AudioTrack`. Tuy nhiên, do không có micro thu âm bên ngoài để ghi lại phổ âm thanh thực tế trong phòng, mục này được ghi nhận trung thực là **UNVERIFIED**.
-3. **Reboot Regression (Khởi động lại máy):** Micro-phase P0.2 không sửa đổi bất kỳ tệp nào liên quan đến Boot Receiver (`BootReceiver.kt`), cấu hình Manifest (`AndroidManifest.xml`), hay quy trình khởi động dịch vụ trợ năng. Theo đúng quy tắc Mục 16, chúng tôi tham chiếu đến kết quả kiểm thử reboot hợp lệ trước đó tại `PHASE_2A_P0_1_FINAL_EVIDENCE_CLOSURE_REPORT.md` (đạt trạng thái tự phục hồi alarm sau reboot) và **không chạy lại bài test reboot** trong đợt này.
+3. **Reboot Regression (Khởi động lại máy):** Micro-phase P0.2 và P0.2-Correction không sửa đổi bất kỳ tệp nào liên quan đến Boot Receiver (`BootReceiver.kt`), cấu hình Manifest (`AndroidManifest.xml`), hay quy trình khởi động dịch vụ trợ năng. Theo đúng quy tắc Mục 16, chúng tôi tham chiếu đến kết quả kiểm thử reboot hợp lệ trước đó tại `PHASE_2A_P0_1_FINAL_EVIDENCE_CLOSURE_REPORT.md` (đạt trạng thái tự phục hồi alarm sau reboot) và **không chạy lại bài test reboot** trong đợt này.
 
 ---
 
-## 8. KIỂM TOÁN CHỐNG FALSE-PASS (20. ANTI-FALSE-PASS AUDIT)
+## 10. KIỂM TOÁN CHỐNG FALSE-PASS (SECTION 16 ANTI-FALSE-PASS AUDIT)
 
-1. **Test có thực sự chạy không?**
-   $\to$ **CÓ.** Chạy trực tiếp qua `scratch/run_p0_2_test.ps1` và tương tác thực tế với `adb`.
-2. **Đúng thiết bị chỉ định không?**
-   $\to$ **CÓ.** Serial `10CF3J1F3400238`, model `V2425A`, Android 15.
-3. **Có lệnh / hành động chính xác không?**
-   $\to$ **CÓ.** Mọi lệnh shell, timestamp, tham số đều được lưu trong tệp thực thi và logcat.
-4. **Kết quả quan sát thực tế có khớp không?**
-   $\to$ **CÓ.** Đồng hồ trên status bar hiển thị đúng `3:59` trước boundary và `4:00` sau boundary.
-5. **Chứng cứ có tồn tại trên đĩa không?**
-   $\to$ **CÓ.** Các tệp ảnh `docs/screen_p0_2_*.png` và tệp log `scratch/logcat_p0_2_boundary_utf8.txt` được ghi nhận với kích thước và thời gian thực tế.
-6. **Chứng cứ có chứng minh trực tiếp quan hệ nhân quả (Causality) không?**
-   $\to$ **CÓ.** Dumpsys tại 03:59:53 chứng minh Chrome đang ở `topResumedActivity`. Logcat lúc 04:00:00.016 ghi nhận alarm callback nổ, và lúc 04:00:00.031 `CycleTransitionManager` phát hiện `'com.android.chrome'`. Lệnh `performHome: result=true` lúc 04:00:00.033 chính là nguyên nhân đẩy Chrome về Home/System Panel, không phải do app tự văng trước đó!
-7. **Có suy luận từ code không?**
-   $\to$ **KHÔNG.** Mọi kết luận PASS đều dựa trên logcat runtime và dumpsys thực tế.
-8. **Có nhầm đăng ký với callback không?**
-   $\to$ **KHÔNG.** Callback được ghi nhận bởi `CycleBroadcastReceiver: [RECEIVE_ALARM_CALLBACK]`.
-9. **Có nhầm screenshot trước boundary với foreground-at-boundary không?**
-   $\to$ **KHÔNG.** Foreground tại boundary được chứng minh đồng thời bằng `topResumedActivity` (03:59:53), logcat của `CycleTransitionManager` (04:00:00.031) và screenshot lúc 04:00:04.
+### 10.1 Formula Audit
+- [x] **Required(N) đúng SSOT?** $\to$ ĐÃ ĐẠT ($Required(N) = \lceil 2N/3 \rceil$ với $N > 0$).
+- [x] **N=2 $\to$ 1?** $\to$ ĐÃ ĐẠT (Đặc xá khởi đầu $Required(2) = 1$).
+- [x] **N=0 $\to$ unlocked?** $\to$ ĐÃ ĐẠT ($N = 0 \implies Required = 0$, decision = `UNLOCKED`).
+- [x] **Ceil semantics đúng?** $\to$ ĐÃ ĐẠT (Sử dụng phép tính ceil chính xác, không dùng phép chia nguyên cắt cụt).
+- [x] **N>6 đúng?** $\to$ ĐÃ ĐẠT ($N=7 \to 5, N=8 \to 6, N=9 \to 6$).
+
+### 10.2 Runtime Audit
+- [x] **Canonical evaluator dùng formula đúng?** $\to$ ĐÃ ĐẠT (`CanonicalLockPolicy.evaluateLock()` gọi `calculateRequiredCompletions()`).
+- [x] **Legacy policy không override?** $\to$ ĐÃ ĐẠT (`TaskUnlockPolicy` đã bị deprecated, bị loại khỏi runtime path).
+- [x] **Voucher override đúng?** $\to$ ĐÃ ĐẠT (Voucher còn hiệu lực lập tức trả về `UNLOCKED`).
+
+### 10.3 Evidence Audit
+- [x] **Mỗi PASS có test thực sự chạy?** $\to$ ĐÃ ĐẠT (Chạy thực tế qua `./gradlew testDebugUnitTest`).
+- [x] **Automated $\neq$ Real Device?** $\to$ ĐÃ ĐẠT (Phân định rành mạch giữa automated unit tests và physical real device tests).
+- [x] **Physical evidence còn applicable sau code changes?** $\to$ ĐÃ ĐẠT (Runtime boundary path không đổi; $N=1, K=0 \to LOCKED$ giữ nguyên kết quả).
+- [x] **Không overclaim continuous foreground?** $\to$ ĐÃ ĐẠT (Đã cập nhật wording chính xác theo checkpoints).
+- [x] **Không nhầm Home với System Panel?** $\to$ ĐÃ ĐẠT (Ghi nhận rõ Chrome $\to$ System Panel $\to$ Back $\to$ Home).
+
+### 10.4 Report Audit
+- [x] **Không còn `ceil(N/2)` trong canonical/documentation?** $\to$ ĐÃ ĐẠT (Đã dọn dẹp và chuẩn hóa theo SSOT).
+- [x] **Không tuyên bố 100% nếu còn UNVERIFIED?** $\to$ ĐÃ ĐẠT (Minh bạch 2 hạng mục Vibration và Sound).
+- [x] **Vibration/Sound vẫn UNVERIFIED nếu chưa physical-tested?** $\to$ ĐÃ ĐẠT.
+- [x] **Reboot không bị biến thành test mới nếu chưa rerun?** $\to$ ĐÃ ĐẠT.
 
 ---
 
-## 9. KẾT LUẬN CUỐI CÙNG (21. FINAL VERDICT)
+## 11. KẾT LUẬN CUỐI CÙNG (SECTION 17 FINAL VERDICT)
 
-Chuỗi sự kiện nghiệp vụ cốt lõi đã được chứng minh trọn vẹn 100% bằng chứng cứng trên thiết bị vật lý `vivo iQOO Neo 10` (Android 15):
 ```
-Chrome LOCKED (Precondition: N=1, K=0)
-  ↓
-Chrome Foreground trước Boundary (03:59:50 - 03:59:59)
-  ↓
-Chrome VẪN Foreground tại đúng mốc 04:00:00.000
-  ↓
-AlarmManager Callback nổ (04:00:00.016)
-  ↓
-CycleTransitionManager phát hiện 'com.android.chrome' tại mốc 04:00:00.031
-  ↓
-Boundary Handler kích hoạt performHome & System Panel (04:00:00.033)
-  ↓
-Chrome bị đẩy khỏi foreground → System Panel bao phủ toàn diện → Phím Back về Android Home
+P0.2 CORRECTION CLOSED
 ```
-
-Blocker duy nhất của Phase 2A P0 đã được khắc phục triệt để.
-
-### **KẾT LUẬN: P0.2 CLOSED**
-*(Toàn bộ các điều kiện tiên quyết của Phase 2A P0 đã được giải quyết khép kín và có đầy đủ bằng chứng phần cứng).*
+*(Toàn bộ công thức khóa Canonical đã được đối chiếu và kiểm thử tự động đạt chuẩn 100% MASTER SSOT; Báo cáo nghiệm thu đã được chuẩn hóa câu từ trung thực, không overclaim; Bằng chứng phần cứng thực tế mốc 04:00 boundary trên vivo iQOO Neo 10 duy trì đầy đủ hiệu lực pháp y).*
