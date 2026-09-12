@@ -482,6 +482,7 @@ fun LockScreenContent(
                             try {
                                 val currentCycle = cycleRepo.getCurrentCycle()
                                 completeTaskUseCase(task.id, currentCycle.cycleId)
+                                com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(context).recomputeSnapshot()
                                 taskToConfirm = null
                                 refreshState()
                             } finally {

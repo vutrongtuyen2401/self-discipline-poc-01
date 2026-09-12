@@ -184,6 +184,43 @@ class EvaluateVaultAppUseCase(
 }
 
 /**
+ * Model biểu diễn một phần tử ứng dụng hiển thị trên Bảo Khố (Vault Screen).
+ */
+data class CanonicalVaultAppItem(
+    val app: CanonicalVaultApp,
+    val linkedTasks: List<CanonicalTask>,
+    val lockResult: LockEvaluationResult
+) {
+    val packageName: String get() = app.packageName
+    val appName: String get() = app.displayName
+    val linkedTasksCount: Int get() = linkedTasks.size
+    val isLocked: Boolean get() = lockResult.isLocked
+    val isUnlocked: Boolean get() = lockResult.isUnlocked
+}
+
+/**
+ * Use Case: Lấy toàn bộ ứng dụng trong Bảo Khố kèm thông tin liên kết và trạng thái đánh giá khóa.
+ */
+class GetCanonicalVaultAppsUseCase(
+    private val vaultRepository: CanonicalVaultRepository,
+    private val taskRepository: CanonicalTaskRepository,
+    private val lockEvaluator: CanonicalLockEvaluator
+) {
+    suspend operator fun invoke(instant: Instant = Instant.now()): List<CanonicalVaultAppItem> {
+        val apps = vaultRepository.getAllVaultApps()
+        return apps.map { app ->
+            val tasks = taskRepository.getTasksLinkedToApp(app.packageName)
+            val result = lockEvaluator.evaluateApp(app.packageName, instant)
+            CanonicalVaultAppItem(
+                app = app,
+                linkedTasks = tasks,
+                lockResult = result
+            )
+        }
+    }
+}
+
+/**
  * Use Case: Đổi tên nhiệm vụ tức thì (Instant Update, không confirmation).
  */
 class RenameTaskUseCase(

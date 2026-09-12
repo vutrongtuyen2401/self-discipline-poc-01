@@ -134,21 +134,49 @@ class CanonicalTaskRepositoryImpl(
     }
 
     override suspend fun linkTaskToApp(taskId: String, packageName: String) {
-        linkDao.insertLink(
-            TaskRewardLinkEntity(
-                taskId = taskId,
-                packageName = packageName,
-                linkedAtEpochMillis = System.currentTimeMillis()
+        database.withTransaction {
+            linkDao.insertLink(
+                TaskRewardLinkEntity(
+                    taskId = taskId,
+                    packageName = packageName,
+                    linkedAtEpochMillis = System.currentTimeMillis()
+                )
             )
-        )
+            val task = taskDao.getTaskById(taskId)
+            if (task != null && !task.hasReward) {
+                taskDao.upsertTask(task.copy(hasReward = true))
+            }
+        }
     }
 
     override suspend fun unlinkTaskFromApp(taskId: String, packageName: String) {
-        linkDao.deleteLink(taskId, packageName)
+        database.withTransaction {
+            linkDao.deleteLink(taskId, packageName)
+            val remainingLinks = linkDao.getLinksForTask(taskId)
+            if (remainingLinks.isEmpty()) {
+                val task = taskDao.getTaskById(taskId)
+                if (task != null && task.hasReward) {
+                    taskDao.upsertTask(task.copy(hasReward = false))
+                }
+            }
+        }
     }
 
     override suspend fun removeAllLinksForApp(packageName: String) {
-        linkDao.deleteByApp(packageName)
+        database.withTransaction {
+            val affectedLinks = linkDao.getLinksForApp(packageName)
+            val affectedTaskIds = affectedLinks.map { it.taskId }.distinct()
+            linkDao.deleteByApp(packageName)
+            for (taskId in affectedTaskIds) {
+                val remaining = linkDao.getLinksForTask(taskId)
+                if (remaining.isEmpty()) {
+                    val task = taskDao.getTaskById(taskId)
+                    if (task != null && task.hasReward) {
+                        taskDao.upsertTask(task.copy(hasReward = false))
+                    }
+                }
+            }
+        }
     }
 
     override suspend fun renameTask(taskId: String, newTitle: String) {
@@ -245,10 +273,48 @@ class CanonicalVaultRepositoryImpl(
 
     override suspend fun addVaultApp(app: CanonicalVaultApp) {
         vaultDao.upsertApp(CanonicalVaultAppEntity.fromDomain(app))
+        try {
+            database.appDao().upsertApp(
+                com.example.selfdisciplinepoc01.data.entity.AppEntity(
+                    packageName = app.packageName,
+                    appName = app.displayName
+                )
+            )
+        } catch (_: Exception) {
+        }
     }
 
     override suspend fun removeVaultApp(packageName: String) {
-        vaultDao.deleteApp(packageName)
+        database.withTransaction {
+            // 1. Xóa app khỏi bảng canonical_vault_apps
+            vaultDao.deleteApp(packageName)
+
+            // 2. Tìm tất cả task đang liên kết với app này trước khi xóa link
+            val affectedLinks = database.taskRewardLinkDao().getLinksForApp(packageName)
+            val affectedTaskIds = affectedLinks.map { it.taskId }.distinct()
+
+            // 3. Xóa toàn bộ reward links trỏ tới app này
+            database.taskRewardLinkDao().deleteByApp(packageName)
+
+            // 4. Với mỗi task bị ảnh hưởng, kiểm tra xem còn app nào khác không.
+            // Nếu không còn app nào -> hasReward = false (trở thành rewardless task)
+            for (taskId in affectedTaskIds) {
+                val remainingLinks = database.taskRewardLinkDao().getLinksForTask(taskId)
+                if (remainingLinks.isEmpty()) {
+                    val taskEntity = database.canonicalTaskDao().getTaskById(taskId)
+                    if (taskEntity != null && taskEntity.hasReward) {
+                        database.canonicalTaskDao().upsertTask(taskEntity.copy(hasReward = false))
+                    }
+                }
+            }
+
+            // 5. Cô lập / dọn dẹp legacy nếu có
+            try {
+                database.appDao().deleteByPackageName(packageName)
+                database.taskAppCrossRefDao().deleteByAppPackageName(packageName)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     override suspend fun getActiveVouchers(instant: Instant): List<VoucherEffect> {

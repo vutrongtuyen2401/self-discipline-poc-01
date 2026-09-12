@@ -1,38 +1,47 @@
 package com.example.selfdisciplinepoc01.ui.vault
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalLockEvaluator
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalTaskRepository
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalVaultRepository
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.AddVaultAppUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.CanonicalVaultAppItem
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.GetCanonicalVaultAppsUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.RemoveVaultAppUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalLockDecision
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp
+import com.example.selfdisciplinepoc01.domain.canonical.vault.LockEvaluationResult
 import com.example.selfdisciplinepoc01.domain.discovery.InstalledAppDiscoveryService
+import com.example.selfdisciplinepoc01.domain.discovery.InstalledAppDiscoveryServiceImpl
 import com.example.selfdisciplinepoc01.domain.enforcement.AppEnforcementClassification
 import com.example.selfdisciplinepoc01.domain.enforcement.AppEnforcementDetails
 import com.example.selfdisciplinepoc01.domain.enforcement.BusinessUnlockDecision
 import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementAction
 import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementReason
 import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapter
+import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider
 import com.example.selfdisciplinepoc01.domain.model.DiscoveredApp
 import com.example.selfdisciplinepoc01.domain.model.VaultApp
-import com.example.selfdisciplinepoc01.domain.usecase.AddVaultAppUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.RemoveVaultAppUseCase
 import com.example.selfdisciplinepoc01.policy.PolicyDecision
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class VaultUiState(
-    val vaultApps: List<VaultApp> = emptyList(),
+    val vaultApps: List<CanonicalVaultAppItem> = emptyList(),
     val appEnforcementMap: Map<String, AppEnforcementDetails> = emptyMap(),
     val isLoading: Boolean = true,
     val isAddingApp: Boolean = false,
     val discoveredApps: List<DiscoveredApp> = emptyList(),
     val isLoadingDiscovered: Boolean = false,
     val searchQuery: String = "",
-    val appPendingRemoval: VaultApp? = null,
+    val appPendingRemoval: CanonicalVaultAppItem? = null,
     val bannerMessage: String? = null
 ) {
     val filteredDiscoveredApps: List<DiscoveredApp>
@@ -47,68 +56,136 @@ data class VaultUiState(
 }
 
 class VaultViewModel(
-    private val getVaultAppsUseCase: GetVaultAppsUseCase,
-    private val addVaultAppUseCase: AddVaultAppUseCase,
-    private val removeVaultAppUseCase: RemoveVaultAppUseCase,
+    private val getCanonicalVaultAppsUseCase: GetCanonicalVaultAppsUseCase?,
+    private val canonicalAddVaultAppUseCase: AddVaultAppUseCase?,
+    private val canonicalRemoveVaultAppUseCase: RemoveVaultAppUseCase?,
+    private val legacyGetVaultAppsUseCase: com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase? = null,
+    private val legacyAddVaultAppUseCase: com.example.selfdisciplinepoc01.domain.usecase.AddVaultAppUseCase? = null,
+    private val legacyRemoveVaultAppUseCase: com.example.selfdisciplinepoc01.domain.usecase.RemoveVaultAppUseCase? = null,
     private val discoveryService: InstalledAppDiscoveryService,
     private val enforcementAdapter: TaskAppEnforcementAdapter? = null
 ) : ViewModel() {
+
+    // Canonical primary constructor
+    constructor(
+        getCanonicalVaultAppsUseCase: GetCanonicalVaultAppsUseCase,
+        addVaultAppUseCase: AddVaultAppUseCase,
+        removeVaultAppUseCase: RemoveVaultAppUseCase,
+        discoveryService: InstalledAppDiscoveryService,
+        enforcementAdapter: TaskAppEnforcementAdapter? = null
+    ) : this(
+        getCanonicalVaultAppsUseCase = getCanonicalVaultAppsUseCase,
+        canonicalAddVaultAppUseCase = addVaultAppUseCase,
+        canonicalRemoveVaultAppUseCase = removeVaultAppUseCase,
+        legacyGetVaultAppsUseCase = null,
+        legacyAddVaultAppUseCase = null,
+        legacyRemoveVaultAppUseCase = null,
+        discoveryService = discoveryService,
+        enforcementAdapter = enforcementAdapter
+    )
+
+    // Backward-compatible constructor for existing tests
+    @Deprecated("Legacy constructor for test compatibility")
+    constructor(
+        getVaultAppsUseCase: com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase,
+        addVaultAppUseCase: com.example.selfdisciplinepoc01.domain.usecase.AddVaultAppUseCase,
+        removeVaultAppUseCase: com.example.selfdisciplinepoc01.domain.usecase.RemoveVaultAppUseCase,
+        discoveryService: InstalledAppDiscoveryService,
+        enforcementAdapter: TaskAppEnforcementAdapter? = null
+    ) : this(
+        getCanonicalVaultAppsUseCase = null,
+        canonicalAddVaultAppUseCase = null,
+        canonicalRemoveVaultAppUseCase = null,
+        legacyGetVaultAppsUseCase = getVaultAppsUseCase,
+        legacyAddVaultAppUseCase = addVaultAppUseCase,
+        legacyRemoveVaultAppUseCase = removeVaultAppUseCase,
+        discoveryService = discoveryService,
+        enforcementAdapter = enforcementAdapter
+    )
 
     private val _uiState = MutableStateFlow(VaultUiState())
     val uiState: StateFlow<VaultUiState> = _uiState.asStateFlow()
 
     init {
-        observeVaultApps()
+        refresh()
     }
 
-    private fun observeVaultApps() {
+    fun refresh() {
         viewModelScope.launch {
-            getVaultAppsUseCase.observeVaultApps()
-                .catch { e ->
-                    _uiState.update { it.copy(isLoading = false, bannerMessage = "Lỗi tải Bảo Khố: ${e.message}") }
-                }
-                .collect { apps ->
-                    val enforcements = apps.associate { app ->
-                        app.packageName to (enforcementAdapter?.evaluateSync(app.packageName) ?: createDefaultEnforcement(app))
-                    }
-                    _uiState.update {
-                        it.copy(
-                            vaultApps = apps,
-                            appEnforcementMap = enforcements,
-                            isLoading = false
+            try {
+                enforcementAdapter?.recomputeSnapshot()
+                val items: List<CanonicalVaultAppItem> = if (getCanonicalVaultAppsUseCase != null) {
+                    getCanonicalVaultAppsUseCase.invoke()
+                } else if (legacyGetVaultAppsUseCase != null) {
+                    val legacyApps = legacyGetVaultAppsUseCase.getAllVaultApps()
+                    legacyApps.map { app ->
+                        CanonicalVaultAppItem(
+                            app = CanonicalVaultApp(
+                                packageName = app.packageName,
+                                displayName = app.appName
+                            ),
+                            linkedTasks = emptyList(),
+                            lockResult = LockEvaluationResult(
+                                packageName = app.packageName,
+                                decision = CanonicalLockDecision.UNLOCKED,
+                                reason = "LEGACY_FALLBACK",
+                                totalLinkedRewardTasks = app.linkedTasksCount,
+                                completedLinkedRewardTasks = 0,
+                                requiredCompletions = 0
+                            )
                         )
                     }
+                } else {
+                    emptyList()
                 }
+
+                val enforcements = items.associate { item ->
+                    item.packageName to (enforcementAdapter?.evaluateSync(item.packageName) ?: createDefaultEnforcement(item))
+                }
+                _uiState.update {
+                    it.copy(
+                        vaultApps = items,
+                        appEnforcementMap = enforcements,
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, bannerMessage = "Lỗi tải Bảo Khố: ${e.message}") }
+            }
         }
     }
 
     fun refreshEnforcement() {
-        val currentApps = _uiState.value.vaultApps
-        if (currentApps.isNotEmpty()) {
-            val enforcements = currentApps.associate { app ->
-                app.packageName to (enforcementAdapter?.evaluateSync(app.packageName) ?: createDefaultEnforcement(app))
-            }
-            _uiState.update { it.copy(appEnforcementMap = enforcements) }
-        }
+        refresh()
     }
 
-    private fun createDefaultEnforcement(app: VaultApp): AppEnforcementDetails {
-        val hasTasks = app.linkedTasksCount > 0
+    private fun createDefaultEnforcement(appItem: CanonicalVaultAppItem): AppEnforcementDetails {
+        val hasTasks = appItem.linkedTasksCount > 0
+        val isUnlocked = appItem.isUnlocked
         return AppEnforcementDetails(
-            packageName = app.packageName,
+            packageName = appItem.packageName,
             isTechnicalLockActive = false,
             technicalPolicyDecision = PolicyDecision.ALLOW,
             isVaultApp = true,
             classification = if (hasTasks) AppEnforcementClassification.VAULT_APP_WITH_TASKS else AppEnforcementClassification.VAULT_APP_UNLINKED,
-            totalLinkedTasksCount = app.linkedTasksCount,
-            activeLinkedTasksCount = app.linkedTasksCount,
-            completedLinkedTasksCount = 0,
-            incompleteLinkedTasksCount = app.linkedTasksCount,
+            totalLinkedTasksCount = appItem.linkedTasksCount,
+            activeLinkedTasksCount = appItem.linkedTasksCount,
+            completedLinkedTasksCount = appItem.lockResult.completedLinkedRewardTasks,
+            incompleteLinkedTasksCount = appItem.linkedTasksCount - appItem.lockResult.completedLinkedRewardTasks,
             archivedLinkedTasksCount = 0,
-            requiredTasksCount = if (hasTasks) (2 * app.linkedTasksCount + 2) / 3 else 0,
-            businessUnlockDecision = if (hasTasks) BusinessUnlockDecision.INSUFFICIENT_COMPLETION else BusinessUnlockDecision.NO_LINKED_TASKS,
-            finalAction = EnforcementAction.LOCK,
-            reason = if (hasTasks) EnforcementReason.LOCKED_INSUFFICIENT_TASKS else EnforcementReason.LOCKED_BY_VAULT_NO_TASK
+            requiredTasksCount = appItem.lockResult.requiredCompletions,
+            businessUnlockDecision = if (isUnlocked) {
+                if (hasTasks) BusinessUnlockDecision.UNLOCKED else BusinessUnlockDecision.NO_LINKED_TASKS
+            } else {
+                BusinessUnlockDecision.INSUFFICIENT_COMPLETION
+            },
+            finalAction = if (isUnlocked) EnforcementAction.ALLOW else EnforcementAction.LOCK,
+            reason = if (isUnlocked) {
+                EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS
+            } else {
+                if (hasTasks) EnforcementReason.LOCKED_INSUFFICIENT_TASKS else EnforcementReason.LOCKED_BY_VAULT_NO_TASK
+            },
+            canonicalLockResult = appItem.lockResult
         )
     }
 
@@ -154,9 +231,11 @@ class VaultViewModel(
 
     fun onAddApp(discoveredApp: DiscoveredApp) {
         viewModelScope.launch {
-            val result = addVaultAppUseCase(discoveredApp.packageName, discoveredApp.appName)
-            result.onSuccess {
-                // Update local discovered list status
+            try {
+                canonicalAddVaultAppUseCase?.invoke(discoveredApp.packageName, discoveredApp.appName)
+                legacyAddVaultAppUseCase?.invoke(discoveredApp.packageName, discoveredApp.appName)
+                enforcementAdapter?.recomputeSnapshot()
+                refresh()
                 _uiState.update { state ->
                     val updatedDiscovered = state.discoveredApps.map {
                         if (it.packageName == discoveredApp.packageName) it.copy(isAlreadyInVault = true) else it
@@ -166,16 +245,33 @@ class VaultViewModel(
                         bannerMessage = "Đã thu nạp [${discoveredApp.appName}] vào Bảo Khố!"
                     )
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(bannerMessage = "Lỗi thêm ứng dụng: ${error.message}")
+                    it.copy(bannerMessage = "Lỗi thêm ứng dụng: ${e.message}")
                 }
             }
         }
     }
 
-    fun onPromptRemoveApp(app: VaultApp) {
+    fun onPromptRemoveApp(app: CanonicalVaultAppItem) {
         _uiState.update { it.copy(appPendingRemoval = app) }
+    }
+
+    fun onPromptRemoveApp(app: VaultApp) {
+        val found = _uiState.value.vaultApps.firstOrNull { it.packageName == app.packageName }
+            ?: CanonicalVaultAppItem(
+                app = CanonicalVaultApp(app.packageName, app.appName),
+                linkedTasks = emptyList(),
+                lockResult = LockEvaluationResult(
+                    packageName = app.packageName,
+                    decision = CanonicalLockDecision.UNLOCKED,
+                    reason = "",
+                    totalLinkedRewardTasks = 0,
+                    completedLinkedRewardTasks = 0,
+                    requiredCompletions = 0
+                )
+            )
+        _uiState.update { it.copy(appPendingRemoval = found) }
     }
 
     fun onDismissRemoveDialog() {
@@ -185,19 +281,22 @@ class VaultViewModel(
     fun onConfirmRemoveApp() {
         val app = _uiState.value.appPendingRemoval ?: return
         viewModelScope.launch {
-            val result = removeVaultAppUseCase(app.packageName)
-            result.onSuccess {
+            try {
+                canonicalRemoveVaultAppUseCase?.invoke(app.packageName)
+                legacyRemoveVaultAppUseCase?.invoke(app.packageName)
+                enforcementAdapter?.recomputeSnapshot()
+                refresh()
                 _uiState.update {
                     it.copy(
                         appPendingRemoval = null,
                         bannerMessage = "Đã gỡ [${app.appName}] khỏi Bảo Khố."
                     )
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         appPendingRemoval = null,
-                        bannerMessage = "Lỗi gỡ ứng dụng: ${error.message}"
+                        bannerMessage = "Lỗi gỡ ứng dụng: ${e.message}"
                     )
                 }
             }
@@ -210,18 +309,24 @@ class VaultViewModel(
 
     companion object {
         fun provideFactory(
-            repository: CoreDataRepository,
-            discoveryService: InstalledAppDiscoveryService,
+            context: Context,
             enforcementAdapter: TaskAppEnforcementAdapter? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val appContext = context.applicationContext
+                val vaultRepo = CanonicalRepositoryProvider.getVaultRepository(appContext)
+                val taskRepo = CanonicalRepositoryProvider.getTaskRepository(appContext)
+                val lockEvaluator = CanonicalRepositoryProvider.getLockEvaluator(appContext)
+                val discoveryService = InstalledAppDiscoveryServiceImpl(appContext)
+                val effectiveAdapter = enforcementAdapter ?: TaskAppEnforcementAdapterProvider.getAdapter(appContext)
+
                 return VaultViewModel(
-                    getVaultAppsUseCase = GetVaultAppsUseCase(repository),
-                    addVaultAppUseCase = AddVaultAppUseCase(repository),
-                    removeVaultAppUseCase = RemoveVaultAppUseCase(repository),
+                    getCanonicalVaultAppsUseCase = GetCanonicalVaultAppsUseCase(vaultRepo, taskRepo, lockEvaluator),
+                    addVaultAppUseCase = AddVaultAppUseCase(vaultRepo, lockEvaluator),
+                    removeVaultAppUseCase = RemoveVaultAppUseCase(vaultRepo, taskRepo),
                     discoveryService = discoveryService,
-                    enforcementAdapter = enforcementAdapter
+                    enforcementAdapter = effectiveAdapter
                 ) as T
             }
         }

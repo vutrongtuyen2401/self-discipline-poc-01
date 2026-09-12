@@ -39,8 +39,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.CanonicalVaultAppItem
 import com.example.selfdisciplinepoc01.domain.model.DiscoveredApp
-import com.example.selfdisciplinepoc01.domain.model.VaultApp
 import com.example.selfdisciplinepoc01.ui.design.components.AppItemGridCard
 import com.example.selfdisciplinepoc01.ui.design.components.AsyncAppIcon
 import com.example.selfdisciplinepoc01.ui.design.components.CultivationButton
@@ -290,7 +290,7 @@ fun VaultSummaryCard(
  */
 @Composable
 fun VaultAppItemCard(
-    app: VaultApp,
+    app: CanonicalVaultAppItem,
     onRemove: () -> Unit
 ) {
     AppItemGridCard(
