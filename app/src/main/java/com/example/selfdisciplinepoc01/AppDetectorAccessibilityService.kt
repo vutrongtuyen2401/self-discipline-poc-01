@@ -371,16 +371,16 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             return
         }
 
-        // B. If intra-session target event (target was already continuously in foreground) and already locked
-        if (!isNewTransition && isChromeLockedForCurrentTransition) {
+        // B. If intra-session target event (target was already continuously in foreground) and already locked AND lock screen is visible
+        if (!isNewTransition && isChromeLockedForCurrentTransition && isLockScreenVisible) {
             Log.w(
                 TAG,
-                "[DECISION: SKIP] BỎ QUA không launch. Sự kiện trùng lặp nội bộ target trong cùng session (prevPkg='$prevPkg', target đã ở foreground liên tục). Không launch lặp lại."
+                "[DECISION: SKIP] BỎ QUA không launch. Sự kiện trùng lặp nội bộ target trong cùng session và LockScreen đang hiển thị (prevPkg='$prevPkg'). Không launch lặp lại."
             )
             logger.warn(
                 DiagnosticEvent(
                     type = DiagnosticEventType.LOCK_LAUNCH_REJECTED,
-                    message = "Lock launch rejected by Rule B (Intra-session duplicate)",
+                    message = "Lock launch rejected by Rule B (Intra-session duplicate and LockScreen visible)",
                     packageName = packageName,
                     lockReason = reason,
                     currentForegroundPackage = prevPkg,
@@ -439,7 +439,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
 
         val t3 = SystemClock.elapsedRealtimeNanos()
         val intent = Intent(this, LockScreenActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra(LockScreenActivity.EXTRA_SESSION_ID, launchSessionId)
             putExtra(LockScreenActivity.EXTRA_T1_NS, t1)
             putExtra(LockScreenActivity.EXTRA_T2_NS, t2)

@@ -46,7 +46,6 @@ fun TaskCard(
     createdAtText: String? = null,
     linkedApps: List<CanonicalVaultApp> = emptyList(),
     pendingNextCycleApps: List<String>? = null,
-    onCompleteClick: (() -> Unit)? = null,
     onRenameClick: (() -> Unit)? = null,
     onUndoClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,
@@ -158,16 +157,7 @@ fun TaskCard(
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         )
                     } else if (!isCurrentActive && !isCompleted) {
-                        if (onCompleteClick != null) {
-                            CultivationButton(
-                                text = "Xong",
-                                onClick = onCompleteClick,
-                                variant = CultivationButtonVariant.SECONDARY,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
                         if (onDeleteClick != null) {
-                            Spacer(modifier = Modifier.width(6.dp))
                             CultivationButton(
                                 text = "Xóa",
                                 onClick = onDeleteClick,
@@ -278,7 +268,8 @@ fun TaskCard(
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onLinkAppsClick != null) {
                         CultivationButton(
@@ -288,12 +279,22 @@ fun TaskCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    if (onCompleteClick != null) {
-                        CultivationButton(
-                            text = "Hoàn thành",
-                            onClick = onCompleteClick,
-                            variant = CultivationButtonVariant.PRIMARY,
-                            modifier = Modifier.weight(1.4f)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    // Trạng thái chỉ đọc trong Mission Hall theo SSOT:
+                    // Thao tác hoàn thành chỉ xuất hiện bên trong System Panel khi app bị khóa
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(
+                                CultivationTheme.colors.background,
+                                CultivationTheme.shapes.chip
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "⏳ Đang thực hiện",
+                            style = CultivationTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
+                            color = CultivationTheme.colors.textMuted
                         )
                     }
                 }

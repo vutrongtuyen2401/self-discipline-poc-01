@@ -9,7 +9,6 @@ import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalLock
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalTaskRepository
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalVaultRepository
-import com.example.selfdisciplinepoc01.domain.canonical.usecase.CompleteTaskUseCase
 import com.example.selfdisciplinepoc01.domain.canonical.usecase.CreateTaskUseCase
 import com.example.selfdisciplinepoc01.domain.canonical.usecase.DeleteTaskUseCase
 import com.example.selfdisciplinepoc01.domain.canonical.usecase.GetMissionHallTasksCanonicalUseCase
@@ -77,7 +76,6 @@ class MissionHallViewModel(
     private val getTasksUseCase: GetMissionHallTasksCanonicalUseCase,
     private val createTaskUseCase: CreateTaskUseCase,
     private val renameTaskUseCase: RenameTaskUseCase,
-    private val completeTaskUseCase: CompleteTaskUseCase,
     private val undoTaskUseCase: UndoTaskUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
     private val updateRewardLinkageUseCase: UpdateTaskRewardLinkageUseCase,
@@ -221,26 +219,6 @@ class MissionHallViewModel(
                 taskBeingRenamed = null,
                 renameInputName = ""
             )
-        }
-    }
-
-    // --- Complete Task Flow (No Confirmation Dialog in Mission Hall per SSOT) ---
-
-    fun onCompleteTask(taskId: String) {
-        viewModelScope.launch {
-            try {
-                val currentCycle = cycleRepository.getCurrentCycle()
-                completeTaskUseCase(taskId, currentCycle.cycleId)
-                enforcementAdapter?.recomputeSnapshot()
-                refresh()
-                _uiState.update {
-                    it.copy(bannerMessage = "Chúc mừng Ký chủ đã hoàn thành một nhiệm vụ!")
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(bannerMessage = "Lỗi hoàn thành nhiệm vụ: ${e.message}")
-                }
-            }
         }
     }
 
@@ -429,7 +407,6 @@ class MissionHallViewModel(
                     getTasksUseCase = GetMissionHallTasksCanonicalUseCase(taskRepo, vaultRepo, cycleRepo),
                     createTaskUseCase = CreateTaskUseCase(taskRepo),
                     renameTaskUseCase = RenameTaskUseCase(taskRepo),
-                    completeTaskUseCase = CompleteTaskUseCase(taskRepo, lockEvaluator),
                     undoTaskUseCase = UndoTaskUseCase(taskRepo, lockEvaluator),
                     deleteTaskUseCase = DeleteTaskUseCase(taskRepo, lockEvaluator),
                     updateRewardLinkageUseCase = UpdateTaskRewardLinkageUseCase(taskRepo, lockEvaluator),

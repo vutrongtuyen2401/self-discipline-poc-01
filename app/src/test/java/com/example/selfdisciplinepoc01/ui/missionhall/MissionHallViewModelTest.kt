@@ -54,7 +54,6 @@ class MissionHallViewModelTest {
             getTasksUseCase = GetMissionHallTasksCanonicalUseCase(taskRepo, vaultRepo, cycleRepo),
             createTaskUseCase = CreateTaskUseCase(taskRepo),
             renameTaskUseCase = RenameTaskUseCase(taskRepo),
-            completeTaskUseCase = CompleteTaskUseCase(taskRepo, lockEvaluator),
             undoTaskUseCase = UndoTaskUseCase(taskRepo, lockEvaluator),
             deleteTaskUseCase = DeleteTaskUseCase(taskRepo, lockEvaluator),
             updateRewardLinkageUseCase = UpdateTaskRewardLinkageUseCase(taskRepo, lockEvaluator),
@@ -197,8 +196,12 @@ class MissionHallViewModelTest {
         val task1 = viewModel.uiState.value.currentTask!!
         assertEquals("Task 1", task1.task.title)
 
-        // Complete Task 1
-        viewModel.onCompleteTask(task1.task.id)
+        // Hoàn thành Task 1 qua CompleteTaskUseCase (System Panel completion model)
+        val completeUseCase = CompleteTaskUseCase(taskRepo, lockEvaluator)
+        val currentCycle = cycleRepo.getCurrentCycle()
+        completeUseCase(task1.task.id, currentCycle.cycleId)
+        viewModel.refresh()
+
         val stateAfter = withTimeout(3000) {
             viewModel.uiState.first { it.completedCount == 1 }
         }
@@ -216,12 +219,17 @@ class MissionHallViewModelTest {
         viewModel.onConfirmAddTask()
         val taskItem = withTimeout(3000) { viewModel.uiState.first { it.currentTask != null }.currentTask!! }
 
-        viewModel.onCompleteTask(taskItem.task.id)
+        // Hoàn thành qua CompleteTaskUseCase (chuẩn SSOT không hoàn thành qua Mission Hall)
+        val completeUseCase = CompleteTaskUseCase(taskRepo, lockEvaluator)
+        val currentCycle = cycleRepo.getCurrentCycle()
+        completeUseCase(taskItem.task.id, currentCycle.cycleId)
+        viewModel.refresh()
+
         withTimeout(3000) { viewModel.uiState.first { it.completedCount == 1 } }
 
         val completedItem = viewModel.uiState.value.completedTasks.first()
 
-        // Bấm hoàn tác -> hiện dialog xác nhận
+        // Bấm hoàn tác -> hiện dialog xác nhận (Mission Hall vẫn hỗ trợ Undo theo SSOT)
         viewModel.onPromptUndoTask(completedItem)
         assertNotNull(viewModel.uiState.value.taskPendingUndo)
 
