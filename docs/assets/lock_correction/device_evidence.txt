@@ -1,0 +1,168 @@
+=== REAL-LOCK-01 ===
+09-12 22:44:27.164 17658 20848 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:44:29.435 17658 20848 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:30.583 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:30.597 17658 17658 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227870559) | pkg='com.android.chrome', sessionId=1789227870559
+09-12 22:44:30.603 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227870559) | sessionId=1789227870559
+
+=== REAL-CHAIN-01 ===
+09-12 22:44:27.164 17658 20848 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:44:29.435 17658 20848 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:30.583 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:30.597 17658 17658 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227870559) | pkg='com.android.chrome', sessionId=1789227870559
+09-12 22:44:30.603 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227870559) | sessionId=1789227870559
+09-12 22:44:34.442 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227874426) | sessionId=1789227874426
+
+=== REAL-CHAIN-02 ===
+09-12 22:44:27.164 17658 20848 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:44:29.435 17658 20848 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:30.583 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:30.597 17658 17658 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227870559) | pkg='com.android.chrome', sessionId=1789227870559
+09-12 22:44:30.603 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227870559) | sessionId=1789227870559
+09-12 22:44:34.442 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227874426) | sessionId=1789227874426
+09-12 22:44:37.168 17658 20846 I CanonicalTestSeam: [COMPLETE_TASK] Đã complete task 'task_real_a' trong cycle '2026-09-12'. Affected apps=[]
+09-12 22:44:38.315 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:39.467 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:39.468 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227879455) | sessionId=1789227879455
+
+=== REAL-CHAIN-03 ===
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227874426) | pkg='com.android.chrome', sessionId=1789227874426
+09-12 22:44:34.444 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227874426) | sessionId=1789227874426
+09-12 22:44:37.168 17658 20846 I CanonicalTestSeam: [COMPLETE_TASK] Đã complete task 'task_real_a' trong cycle '2026-09-12'. Affected apps=[]
+09-12 22:44:38.315 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:39.467 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:39.468 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227879455) | sessionId=1789227879455
+09-12 22:44:42.234 17658 20417 I CanonicalTestSeam: [COMPLETE_TASK] Đã complete task 'task_real_b' trong cycle '2026-09-12'. Affected apps=[]
+09-12 22:44:43.370 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:44.504 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227884488) | sessionId=1789227884488
+
+=== REAL-DELETE-01 ===
+09-12 22:44:39.468 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227879455) | sessionId=1789227879455
+09-12 22:44:42.234 17658 20417 I CanonicalTestSeam: [COMPLETE_TASK] Đã complete task 'task_real_b' trong cycle '2026-09-12'. Affected apps=[]
+09-12 22:44:43.370 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:44.504 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227884488) | sessionId=1789227884488
+09-12 22:44:47.294 17658 20417 I CanonicalTestSeam: [QUERY_DELETE_ELIGIBILITY] App 'com.android.chrome': N=0, K=0, requiredForDeletion=0, canDelete=true, lockDecision=UNLOCKED, syncAction=ALLOW
+
+=== REAL-LOCK-02 ===
+09-12 22:44:38.315 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:39.467 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:39.468 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227879455) | pkg='com.android.chrome', sessionId=1789227879455
+09-12 22:44:39.469 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227879455) | sessionId=1789227879455
+09-12 22:44:42.234 17658 20417 I CanonicalTestSeam: [COMPLETE_TASK] Đã complete task 'task_real_b' trong cycle '2026-09-12'. Affected apps=[]
+09-12 22:44:43.370 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:44.504 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227884488) | pkg='com.android.chrome', sessionId=1789227884488
+09-12 22:44:44.507 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227884488) | sessionId=1789227884488
+09-12 22:44:47.294 17658 20417 I CanonicalTestSeam: [QUERY_DELETE_ELIGIBILITY] App 'com.android.chrome': N=0, K=0, requiredForDeletion=0, canDelete=true, lockDecision=UNLOCKED, syncAction=ALLOW
+09-12 22:44:48.495 17658 20417 I CanonicalTestSeam: [UNLINK_TASK_APP] Đã hủy liên kết Task 'task_real_a' khỏi 'com.android.chrome' (IMMEDIATE). Còn lại links: 0, eval=UNLOCKED, syncAction=ALLOW
+09-12 22:44:49.638 17658 20417 I CanonicalTestSeam: [UNLINK_TASK_APP] Đã hủy liên kết Task 'task_real_b' khỏi 'com.android.chrome' (IMMEDIATE). Còn lại links: 0, eval=UNLOCKED, syncAction=ALLOW
+09-12 22:44:50.785 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+
+=== REAL-LIFECYCLE-01 ===
+09-12 22:44:47.294 17658 20417 I CanonicalTestSeam: [QUERY_DELETE_ELIGIBILITY] App 'com.android.chrome': N=0, K=0, requiredForDeletion=0, canDelete=true, lockDecision=UNLOCKED, syncAction=ALLOW
+09-12 22:44:48.495 17658 20417 I CanonicalTestSeam: [UNLINK_TASK_APP] Đã hủy liên kết Task 'task_real_a' khỏi 'com.android.chrome' (IMMEDIATE). Còn lại links: 0, eval=UNLOCKED, syncAction=ALLOW
+09-12 22:44:49.638 17658 20417 I CanonicalTestSeam: [UNLINK_TASK_APP] Đã hủy liên kết Task 'task_real_b' khỏi 'com.android.chrome' (IMMEDIATE). Còn lại links: 0, eval=UNLOCKED, syncAction=ALLOW
+09-12 22:44:50.785 17658 20417 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:44:52.026 17658 20846 I CanonicalTestSeam: [LINK_TASK_APP] Đã liên kết Task 'task_life_a' với 'com.android.chrome' (IMMEDIATE). Links=1, eval=LOCKED, syncAction=LOCK
+09-12 22:44:53.169 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227893149) | pkg='com.android.chrome', sessionId=1789227893149
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227893149) | pkg='com.android.chrome', sessionId=1789227893149
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227893149) | sessionId=1789227893149
+09-12 22:44:57.097 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227893149) | sessionId=1789227893149
+
+=== REAL-LIFECYCLE-02 ===
+09-12 22:44:52.026 17658 20846 I CanonicalTestSeam: [LINK_TASK_APP] Đã liên kết Task 'task_life_a' với 'com.android.chrome' (IMMEDIATE). Links=1, eval=LOCKED, syncAction=LOCK
+09-12 22:44:53.169 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227893149) | pkg='com.android.chrome', sessionId=1789227893149
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227893149) | pkg='com.android.chrome', sessionId=1789227893149
+09-12 22:44:53.172 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227893149) | sessionId=1789227893149
+09-12 22:44:57.097 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227893149) | sessionId=1789227893149
+09-12 22:45:01.076 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.087 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227901061) | sessionId=1789227901061
+
+=== REAL-LIFECYCLE-03 ===
+09-12 22:44:57.097 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227893149) | sessionId=1789227893149
+09-12 22:45:01.076 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.087 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227901061) | sessionId=1789227901061
+09-12 22:45:04.990 19251 19251 I CycleTransitionManager: [RECONCILE] Khởi động / Hòa giải: Nhảy trực tiếp tới chu kỳ hiện tại 2026-09-12 (Zone: Asia/Ho_Chi_Minh). Không replay lịch sử.
+09-12 22:45:05.044 19251 19251 I CycleTransitionManager: [SCHEDULE] Đã lên lịch 04:00:00 tiếp theo tại: 2026-09-12T21:00:00Z (epochMillis=1789246800000, zone=Asia/Ho_Chi_Minh)
+09-12 22:45:07.013 19251 19251 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:07.029 19251 19251 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227906999) | pkg='com.android.chrome', sessionId=1789227906999
+09-12 22:45:07.033 19251 19251 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227906999) | sessionId=1789227906999
+
+=== REAL-CYCLE-01 ===
+09-12 22:45:01.076 17658 17658 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCKSCREEN_NEW_INTENT] LockScreenActivity received newIntent for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.086 17658 17658 I DiagnosticTrace: [LOCK_SESSION_REUSED] Existing LockScreenActivity instance reused for com.android.chrome (sessionId=1789227901061) | pkg='com.android.chrome', sessionId=1789227901061
+09-12 22:45:01.087 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227901061) | sessionId=1789227901061
+09-12 22:45:04.990 19251 19251 I CycleTransitionManager: [RECONCILE] Khởi động / Hòa giải: Nhảy trực tiếp tới chu kỳ hiện tại 2026-09-12 (Zone: Asia/Ho_Chi_Minh). Không replay lịch sử.
+09-12 22:45:05.044 19251 19251 I CycleTransitionManager: [SCHEDULE] Đã lên lịch 04:00:00 tiếp theo tại: 2026-09-12T21:00:00Z (epochMillis=1789246800000, zone=Asia/Ho_Chi_Minh)
+09-12 22:45:07.013 19251 19251 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:07.029 19251 19251 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227906999) | pkg='com.android.chrome', sessionId=1789227906999
+09-12 22:45:07.033 19251 19251 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227906999) | sessionId=1789227906999
+09-12 22:45:09.684 19251 19251 I CycleTransitionManager: [CYCLE_BOUNDARY_TRIGGER] AlarmManager callback tại 2026-09-12T15:45:09.684133Z (zone=Asia/Ho_Chi_Minh, targetCycle=2026-09-12)
+09-12 22:45:09.684 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Đã chạm mốc chu kỳ mới: 2026-09-12. Cập nhật snapshot in-memory...
+09-12 22:45:09.701 19251 19251 I CycleTransitionManager: [SCHEDULE] Đã lên lịch 04:00:00 tiếp theo tại: 2026-09-12T21:00:00Z (epochMillis=1789246800000, zone=Asia/Ho_Chi_Minh)
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Foreground app phát hiện tại mốc 04:00: 'null'
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Không có managed target app đang foreground. Kết thúc an toàn không phát sinh popup/rung/notification.
+09-12 22:45:09.703 19251 19251 I CanonicalTestSeam: [CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from broadcast
+
+=== REAL-NEXT-01 ===
+09-12 22:45:01.087 17658 17658 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227901061) | sessionId=1789227901061
+09-12 22:45:04.990 19251 19251 I CycleTransitionManager: [RECONCILE] Khởi động / Hòa giải: Nhảy trực tiếp tới chu kỳ hiện tại 2026-09-12 (Zone: Asia/Ho_Chi_Minh). Không replay lịch sử.
+09-12 22:45:05.044 19251 19251 I CycleTransitionManager: [SCHEDULE] Đã lên lịch 04:00:00 tiếp theo tại: 2026-09-12T21:00:00Z (epochMillis=1789246800000, zone=Asia/Ho_Chi_Minh)
+09-12 22:45:07.013 19251 19251 I CanonicalTestSeam: [LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for com.android.chrome
+09-12 22:45:07.029 19251 19251 I DiagnosticTrace: [LOCKSCREEN_CREATED] LockScreenActivity created for com.android.chrome (sessionId=1789227906999) | pkg='com.android.chrome', sessionId=1789227906999
+09-12 22:45:07.033 19251 19251 I DiagnosticTrace: [LOCKSCREEN_RESUMED] LockScreenActivity resumed (sessionId=1789227906999) | sessionId=1789227906999
+09-12 22:45:09.684 19251 19251 I CycleTransitionManager: [CYCLE_BOUNDARY_TRIGGER] AlarmManager callback tại 2026-09-12T15:45:09.684133Z (zone=Asia/Ho_Chi_Minh, targetCycle=2026-09-12)
+09-12 22:45:09.684 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Đã chạm mốc chu kỳ mới: 2026-09-12. Cập nhật snapshot in-memory...
+09-12 22:45:09.701 19251 19251 I CycleTransitionManager: [SCHEDULE] Đã lên lịch 04:00:00 tiếp theo tại: 2026-09-12T21:00:00Z (epochMillis=1789246800000, zone=Asia/Ho_Chi_Minh)
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Foreground app phát hiện tại mốc 04:00: 'null'
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Không có managed target app đang foreground. Kết thúc an toàn không phát sinh popup/rung/notification.
+09-12 22:45:09.703 19251 19251 I CanonicalTestSeam: [CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from broadcast
+09-12 22:45:11.460 19251 21562 I CanonicalTestSeam: [CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.
+09-12 22:45:13.091 19251 21567 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:45:15.363 19251 21567 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+
+=== REAL-MANY-01 ===
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Foreground app phát hiện tại mốc 04:00: 'null'
+09-12 22:45:09.703 19251 19251 I CycleTransitionManager: [CYCLE_TRANSITION_0400] Không có managed target app đang foreground. Kết thúc an toàn không phát sinh popup/rung/notification.
+09-12 22:45:09.703 19251 19251 I CanonicalTestSeam: [CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from broadcast
+09-12 22:45:11.460 19251 21562 I CanonicalTestSeam: [CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.
+09-12 22:45:13.091 19251 21567 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:45:15.363 19251 21567 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:45:16.602 19251 21566 I CanonicalTestSeam: [CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.
+09-12 22:45:18.257 19251 21566 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.chrome' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:45:19.393 19251 21566 I CanonicalTestSeam: [VAULT_ADD] Đã thêm 'com.android.calculator2' vào Vault qua UseCase. Decision=UNLOCKED, totalLinks=0, required=0
+09-12 22:45:20.509 19251 21567 I CanonicalTestSeam: [LINK_TASK_APP] Đã liên kết Task 'task_multi_a' với 'com.android.chrome' (IMMEDIATE). Links=1, eval=LOCKED, syncAction=LOCK
+09-12 22:45:21.670 19251 21579 I CanonicalTestSeam: [LINK_TASK_APP] Đã liên kết Task 'task_multi_a' với 'com.android.calculator2' (IMMEDIATE). Links=1, eval=LOCKED, syncAction=LOCK
+09-12 22:45:22.815 19251 21566 I CanonicalTestSeam: [LINK_TASK_APP] Đã liên kết Task 'task_multi_b' với 'com.android.chrome' (IMMEDIATE). Links=2, eval=LOCKED, syncAction=LOCK
+09-12 22:45:23.970 19251 21567 I CanonicalTestSeam: [UNLINK_TASK_APP] Đã hủy liên kết Task 'task_multi_a' khỏi 'com.android.calculator2' (IMMEDIATE). Còn lại links: 0, eval=UNLOCKED, syncAction=ALLOW
+09-12 22:45:25.082 19251 21567 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.calculator2': inVault=true, linksCount=0, evaluatorDecision=UNLOCKED, syncFinalAction=ALLOW, reason=ALLOWED_UNLOCKED_BY_TASKS
+09-12 22:45:26.200 19251 21567 I CanonicalTestSeam: [QUERY_VAULT_APP] App 'com.android.chrome': inVault=true, linksCount=2, evaluatorDecision=LOCKED, syncFinalAction=LOCK, reason=LOCKED_INSUFFICIENT_TASKS
+

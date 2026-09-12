@@ -211,11 +211,14 @@ class CanonicalPersistenceIntegrationTest {
         assertEquals(2, resPending.totalLinkedRewardTasks)
         assertEquals(1, resPending.requiredCompletions)
 
-        // 4. Hoàn thành 1 task trong chu kỳ hiện tại (1/2 >= 1) -> UNLOCKED
+        // 4. Hoàn thành 1 task trong chu kỳ hiện tại (1/2):
+        // App Lock Policy: Vẫn còn 2 reward tasks yêu cầu -> LOCKED
+        // Deletion Policy: K=1 >= RequiredForDeletion(2)=1 -> canDelete = true
         taskRepo.completeTask("t1", cycleToday)
-        val resUnlocked = lockEvaluator.evaluateApp(testPackage, evalInstant)
-        assertTrue("Đặc xá N=2: hoàn thành 1 task là mở khóa thành công", resUnlocked.isUnlocked)
-        assertEquals(1, resUnlocked.completedLinkedRewardTasks)
+        val resStillLocked = lockEvaluator.evaluateApp(testPackage, evalInstant)
+        assertTrue("App vẫn LOCK vì 2 task yêu cầu vẫn còn hiệu lực trong chu kỳ", resStillLocked.isLocked)
+        assertEquals(1, resStillLocked.completedLinkedRewardTasks)
+        assertEquals(1, resStillLocked.requiredCompletions)
 
         // 5. Thêm Thẻ bài miễn phong còn hạn
         val voucher = VoucherEffect(

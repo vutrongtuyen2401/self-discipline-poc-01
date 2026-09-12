@@ -191,6 +191,13 @@ class LockScreenActivity : ComponentActivity() {
             )
         )
         AppDetectorAccessibilityService.onLockScreenResumed(currentSessionId)
+        if (intent.extras?.keySet()?.any { it.startsWith("EXTRA_CANONICAL_") } == true) {
+            val mainIntent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtras(intent)
+            }
+            startActivity(mainIntent)
+        }
         if (t1 != 0L) {
             setupFirstFrameLatencyMeasurement(targetPkg, t1, t2, t3, t4)
         }
@@ -355,7 +362,9 @@ fun LockScreenContent(
             val app = vaultRepo.getVaultApp(targetPackage)
             val appName = app?.displayName ?: targetPackage
             val evaluation = lockEvaluator.evaluateApp(targetPackage)
-            val linkedTasks = taskRepo.getTasksLinkedToApp(targetPackage).filter { !it.isArchived }
+            val linkedTasks = taskRepo.getTasksLinkedToApp(targetPackage)
+                .filter { !it.isArchived }
+                .sortedWith(compareBy<CanonicalTask> { it.orderIndex }.thenBy { it.id })
             val currentCycle = cycleRepo.getCurrentCycle()
 
             val cycleStates = linkedTasks.map { task ->
@@ -364,18 +373,31 @@ fun LockScreenContent(
             val completed = cycleStates.filter { it.second.isCompleted }.map { it.first }
             val pending = cycleStates.filter { !it.second.isCompleted }.map { it.first }
             val n = linkedTasks.size
-            val required = CanonicalLockPolicy.calculateRequiredCompletions(n)
 
             uiState = SystemPanelUiState(
                 appDisplayName = appName,
                 packageName = targetPackage,
                 totalRequiredTasks = n,
                 completedCount = completed.size,
-                requiredCount = required,
+                requiredCount = n, // Hiển thị chuẩn K / N
                 pendingTasks = pending,
                 isUnlocked = !evaluation.isLocked,
                 isLoading = false
             )
+        }
+    }
+
+    // Tự động làm mới trạng thái khi Activity RESUME hoặc khi targetPackage / sessionId thay đổi
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, targetPackage, sessionId) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                refreshState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -748,7 +770,7 @@ fun LockScreenContent(
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Ký chủ đã hoàn thành đủ số nhiệm vụ tu luyện yêu cầu (${uiState.completedCount}/${uiState.requiredCount}). Phong ấn đã hoàn toàn được dỡ bỏ.",
+                                text = "Ký chủ không còn nhiệm vụ nào phong ấn ứng dụng này hoặc đã kích hoạt giải trừ linh lực. Phong ấn đã hoàn toàn được dỡ bỏ.",
                                 fontSize = 12.sp,
                                 color = Color(0xFFCBD5E1),
                                 textAlign = TextAlign.Center,
@@ -849,7 +871,7 @@ fun LockScreenContent(
                                     color = Color(0xFF94A3B8)
                                 )
                                 Text(
-                                    text = "${uiState.completedCount} / ${uiState.requiredCount}",
+                                    text = "${uiState.completedCount} / ${uiState.totalRequiredTasks}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF00E5FF)
@@ -859,8 +881,8 @@ fun LockScreenContent(
                             Spacer(modifier = Modifier.height(6.dp))
 
                             // Thanh Progress Bar mảnh
-                            val progressRatio = if (uiState.requiredCount > 0) {
-                                (uiState.completedCount.toFloat() / uiState.requiredCount).coerceIn(0f, 1f)
+                            val progressRatio = if (uiState.totalRequiredTasks > 0) {
+                                (uiState.completedCount.toFloat() / uiState.totalRequiredTasks).coerceIn(0f, 1f)
                             } else 0f
 
                             Box(
@@ -879,7 +901,7 @@ fun LockScreenContent(
                                                 colors = listOf(Color(0xFF00E5FF), Color(0xFF3B82F6))
                                             )
                                         )
-                                )
+                                    )
                             }
                         }
 
@@ -902,6 +924,73 @@ fun LockScreenContent(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 15.sp,
                                 letterSpacing = 1.sp
+                            )
+                        }
+                    } else if (uiState.totalRequiredTasks > 0) {
+                        // Tất cả các task đã hoàn thành nhưng app vẫn phong ấn trong chu kỳ theo Master SSOT
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0x221E293B), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0x3338BDF8), RoundedCornerShape(8.dp))
+                                .padding(14.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "⚔ TIẾN ĐỘ CHU KỲ HOÀN TẤT",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Tất cả nhiệm vụ liên kết đã hoàn thành (${uiState.completedCount}/${uiState.totalRequiredTasks}). Ứng dụng vẫn được duy trì phong ấn trong chu kỳ hiện tại theo giới luật.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF94A3B8),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "TIẾN ĐỘ NHIỆM VỤ",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF94A3B8)
+                            )
+                            Text(
+                                text = "${uiState.completedCount} / ${uiState.totalRequiredTasks}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF34D399)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xFF1E293B))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF34D399))
                             )
                         }
                     } else {

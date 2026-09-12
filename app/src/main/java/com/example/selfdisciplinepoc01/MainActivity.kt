@@ -165,6 +165,8 @@ class MainActivity : ComponentActivity() {
         val seedCycleCompletion = intent?.getStringExtra("EXTRA_CANONICAL_SEED_CYCLE_COMPLETION") // format: "taskId|cycleId"
         val seedLockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_LOCK_APP")
         val seedUnlockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_UNLOCK_APP")
+        val completeTaskId = intent?.getStringExtra("EXTRA_CANONICAL_COMPLETE_TASK")
+        val queryDeleteEligibilityPkg = intent?.getStringExtra("EXTRA_CANONICAL_QUERY_DELETE_ELIGIBILITY")
         val evalPkg = intent?.getStringExtra("EXTRA_EVALUATE_CANONICAL")
 
         if (launchLockScreenPkg != null) {
@@ -232,12 +234,12 @@ class MainActivity : ComponentActivity() {
             }
 
             if (createTaskReward != null) {
-                val parts = createTaskReward.split("|")
+                val parts = createTaskReward.split(Regex("[|,;]")).map { it.trim().trim('\'', '"', '\\') }
                 if (parts.size >= 4) {
-                    val taskId = parts[0].trim()
-                    val title = parts[1].trim()
-                    val pkg = parts[2].trim()
-                    val timingStr = parts[3].trim().lowercase()
+                    val taskId = parts[0]
+                    val title = parts[1]
+                    val pkg = parts[2]
+                    val timingStr = parts[3].lowercase()
                     val timing = if (timingStr == "next_cycle") {
                         com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
                     } else {
@@ -256,11 +258,11 @@ class MainActivity : ComponentActivity() {
             }
 
             if (updateReward != null) {
-                val parts = updateReward.split("|")
+                val parts = updateReward.split(Regex("[|,;]")).map { it.trim().trim('\'', '"', '\\') }
                 if (parts.size >= 3) {
-                    val taskId = parts[0].trim()
-                    val pkg = parts[1].trim()
-                    val timingStr = parts[2].trim().lowercase()
+                    val taskId = parts[0]
+                    val pkg = parts[1]
+                    val timingStr = parts[2].lowercase()
                     val timing = if (timingStr == "next_cycle") {
                         com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
                     } else {
@@ -278,10 +280,10 @@ class MainActivity : ComponentActivity() {
             }
 
             if (linkTaskApp != null) {
-                val parts = linkTaskApp.split("|")
+                val parts = linkTaskApp.split(Regex("[|,;]")).map { it.trim().trim('\'', '"', '\\') }
                 if (parts.size == 2) {
-                    val taskId = parts[0].trim()
-                    val pkg = parts[1].trim()
+                    val taskId = parts[0]
+                    val pkg = parts[1]
                     // Ensure task exists
                     if (taskRepo.getTask(taskId) == null) {
                         createTaskUseCase.execute(
@@ -308,10 +310,10 @@ class MainActivity : ComponentActivity() {
             }
 
             if (unlinkTaskApp != null) {
-                val parts = unlinkTaskApp.split("|")
+                val parts = unlinkTaskApp.split(Regex("[|,;]")).map { it.trim().trim('\'', '"', '\\') }
                 if (parts.size == 2) {
-                    val taskId = parts[0].trim()
-                    val pkg = parts[1].trim()
+                    val taskId = parts[0]
+                    val pkg = parts[1]
                     val currentLinks = taskRepo.getAppsLinkedToTask(taskId)
                     val newLinks = currentLinks.filter { it != pkg }
                     updateRewardUseCase.execute(
@@ -384,6 +386,27 @@ class MainActivity : ComponentActivity() {
                 adapter.recomputeSnapshot()
                 val eval = adapter.evaluateSync(seedUnlockPkg)
                 android.util.Log.i("CanonicalTestSeam", "[SEED_UNLOCKED] Đã hoàn thành task cho '$seedUnlockPkg' trong chu kỳ $cycleId (N=1, K=1). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
+            }
+
+            if (completeTaskId != null) {
+                val now = java.time.Instant.now()
+                val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
+                taskRepo.completeTask(completeTaskId, cycleId, now)
+                adapter.recomputeSnapshot()
+                val linkedApps = taskRepo.getAppsLinkedToTask(completeTaskId)
+                com.example.selfdisciplinepoc01.domain.canonical.usecase.CanonicalMutationSyncManager.notifyMutationCommitted(linkedApps)
+                android.util.Log.i("CanonicalTestSeam", "[COMPLETE_TASK] Đã complete task '$completeTaskId' trong cycle '$cycleId'. Affected apps=$linkedApps")
+            }
+
+            if (queryDeleteEligibilityPkg != null) {
+                adapter.recomputeSnapshot()
+                val lockEval = lockEvaluator.evaluateApp(queryDeleteEligibilityPkg)
+                val n = lockEval.totalLinkedRewardTasks
+                val k = lockEval.completedLinkedRewardTasks
+                val canDelete = com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(n, k)
+                val required = com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.calculateRequiredForDeletion(n)
+                val syncEval = adapter.evaluateSync(queryDeleteEligibilityPkg)
+                android.util.Log.i("CanonicalTestSeam", "[QUERY_DELETE_ELIGIBILITY] App '$queryDeleteEligibilityPkg': N=$n, K=$k, requiredForDeletion=$required, canDelete=$canDelete, lockDecision=${lockEval.decision}, syncAction=${syncEval.finalAction}")
             }
 
             if (evalPkg != null) {

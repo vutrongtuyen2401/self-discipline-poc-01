@@ -112,30 +112,30 @@ class CanonicalLockFormulaAndAcceptanceTest {
     @Test
     fun test_LOCK_1_CaseB_N1_K0() {
         val tasks = listOf(CanonicalTask(id = "t1", title = "Task 1", hasReward = true))
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
             cycleTaskStates = emptyMap() // K = 0
         )
         assertTrue(result.isLocked)
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
-        assertEquals(1, result.requiredCompletions)
+        assertEquals(1, result.totalLinkedRewardTasks)
         assertEquals(0, result.completedLinkedRewardTasks)
     }
 
-    /** Case C: N=1, K=1 -> UNLOCKED */
+    /** Case C: N=1, K=1 -> STILL LOCKED theo SSOT (Task link vẫn tồn tại trong chu kỳ) */
     @Test
-    fun test_CaseC_N1_K1() {
+    fun test_CaseC_N1_K1_StillLocked() {
         val tasks = listOf(CanonicalTask(id = "t1", title = "Task 1", hasReward = true))
         val states = mapOf("t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED))
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
             cycleTaskStates = states // K = 1
         )
-        assertTrue(result.isUnlocked)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
-        assertEquals(1, result.requiredCompletions)
+        assertTrue("N=1 có K=1 nhưng reward link vẫn tồn tại -> VẪN LOCKED theo Lock Policy", result.isLocked)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(1, result.totalLinkedRewardTasks)
         assertEquals(1, result.completedLinkedRewardTasks)
     }
 
@@ -146,31 +146,34 @@ class CanonicalLockFormulaAndAcceptanceTest {
             CanonicalTask(id = "t1", title = "Task 1", hasReward = true),
             CanonicalTask(id = "t2", title = "Task 2", hasReward = true)
         )
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
             cycleTaskStates = emptyMap() // K = 0
         )
         assertTrue(result.isLocked)
-        assertEquals(1, result.requiredCompletions) // N=2 required = 1
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(2, result.totalLinkedRewardTasks)
         assertEquals(0, result.completedLinkedRewardTasks)
     }
 
-    /** Case E: N=2, K=1 -> UNLOCKED */
+    /** Case E: N=2, K=1 -> STILL LOCKED (App vẫn LOCKED dù K=1) */
     @Test
-    fun test_CaseE_N2_K1() {
+    fun test_CaseE_N2_K1_StillLocked() {
         val tasks = listOf(
             CanonicalTask(id = "t1", title = "Task 1", hasReward = true),
             CanonicalTask(id = "t2", title = "Task 2", hasReward = true)
         )
         val states = mapOf("t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED))
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
             cycleTaskStates = states // K = 1
         )
-        assertTrue("N=2 có K=1 >= Required(2)=1 -> UNLOCKED", result.isUnlocked)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertTrue("N=2 có K=1 -> VẪN LOCKED vì còn task yêu cầu", result.isLocked)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(2, result.totalLinkedRewardTasks)
+        assertEquals(1, result.completedLinkedRewardTasks)
     }
 
     /** Case F (LOCK-3): N=3, K=1 -> LOCKED */
@@ -182,19 +185,20 @@ class CanonicalLockFormulaAndAcceptanceTest {
             CanonicalTask(id = "t3", title = "Task 3", hasReward = true)
         )
         val states = mapOf("t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED))
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
-            cycleTaskStates = states // K = 1 < Required(3) = 2
+            cycleTaskStates = states // K = 1
         )
         assertTrue(result.isLocked)
-        assertEquals(2, result.requiredCompletions)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(3, result.totalLinkedRewardTasks)
         assertEquals(1, result.completedLinkedRewardTasks)
     }
 
-    /** Case G: N=3, K=2 -> UNLOCKED */
+    /** Case G: N=3, K=2 -> STILL LOCKED */
     @Test
-    fun test_CaseG_N3_K2() {
+    fun test_CaseG_N3_K2_StillLocked() {
         val tasks = listOf(
             CanonicalTask(id = "t1", title = "Task 1", hasReward = true),
             CanonicalTask(id = "t2", title = "Task 2", hasReward = true),
@@ -204,13 +208,14 @@ class CanonicalLockFormulaAndAcceptanceTest {
             "t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED),
             "t2" to TaskCycleState("t2", cycle, TaskCycleStatus.COMPLETED)
         )
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
-            cycleTaskStates = states // K = 2 >= Required(3) = 2
+            cycleTaskStates = states // K = 2
         )
-        assertTrue(result.isUnlocked)
-        assertEquals(2, result.requiredCompletions)
+        assertTrue("N=3 có K=2 -> VẪN LOCKED vì còn task yêu cầu", result.isLocked)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(3, result.totalLinkedRewardTasks)
         assertEquals(2, result.completedLinkedRewardTasks)
     }
 
@@ -222,28 +227,30 @@ class CanonicalLockFormulaAndAcceptanceTest {
             "t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED),
             "t2" to TaskCycleState("t2", cycle, TaskCycleStatus.COMPLETED)
         )
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
-            cycleTaskStates = states // K = 2 < Required(4) = 3
+            cycleTaskStates = states // K = 2
         )
         assertTrue(result.isLocked)
-        assertEquals(3, result.requiredCompletions)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(4, result.totalLinkedRewardTasks)
         assertEquals(2, result.completedLinkedRewardTasks)
     }
 
-    /** Case I: N=4, K=3 -> UNLOCKED */
+    /** Case I: N=4, K=3 -> STILL LOCKED */
     @Test
-    fun test_CaseI_N4_K3() {
+    fun test_CaseI_N4_K3_StillLocked() {
         val tasks = (1..4).map { CanonicalTask(id = "t$it", title = "Task $it", hasReward = true) }
         val states = (1..3).associate { "t$it" to TaskCycleState("t$it", cycle, TaskCycleStatus.COMPLETED) }
-        val result = CanonicalLockPolicy.evaluateLock(
+        val result = CanonicalAppLockPolicy.evaluateLock(
             packageName = testPackage,
             linkedTasks = tasks,
-            cycleTaskStates = states // K = 3 >= Required(4) = 3
+            cycleTaskStates = states // K = 3
         )
-        assertTrue(result.isUnlocked)
-        assertEquals(3, result.requiredCompletions)
+        assertTrue("N=4 có K=3 -> VẪN LOCKED vì còn task yêu cầu", result.isLocked)
+        assertEquals(CanonicalLockDecision.LOCKED, result.decision)
+        assertEquals(4, result.totalLinkedRewardTasks)
         assertEquals(3, result.completedLinkedRewardTasks)
     }
 
@@ -288,5 +295,49 @@ class CanonicalLockFormulaAndAcceptanceTest {
         assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
         assertEquals(0, result.totalLinkedRewardTasks)
         assertEquals(0, result.requiredCompletions)
+    }
+
+    // =========================================================================
+    // PHẦN 3: DELETION ACCEPTANCE TESTS (K >= RequiredForDeletion(N))
+    // =========================================================================
+
+    @Test
+    fun test_DELETE_N1_K0_Denied() {
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 1, completedRewardTasks = 0))
+    }
+
+    @Test
+    fun test_DELETE_N1_K1_Allowed() {
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 1, completedRewardTasks = 1))
+    }
+
+    @Test
+    fun test_DELETE_N2_K0_Denied() {
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 2, completedRewardTasks = 0))
+    }
+
+    @Test
+    fun test_DELETE_N2_K1_Allowed_WhileAppStillLocked() {
+        // N=2, K=1: Được phép xóa khỏi Vault
+        assertTrue("N=2 có K=1 được phép xóa app", CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 2, completedRewardTasks = 1))
+
+        // NHƯNG App vẫn LOCKED theo Lock Policy nếu reward link còn tồn tại!
+        val tasks = listOf(
+            CanonicalTask(id = "t1", title = "Task 1", hasReward = true),
+            CanonicalTask(id = "t2", title = "Task 2", hasReward = true)
+        )
+        val states = mapOf("t1" to TaskCycleState("t1", cycle, TaskCycleStatus.COMPLETED))
+        val lockResult = CanonicalAppLockPolicy.evaluateLock(testPackage, tasks, states)
+        assertTrue("N=2 K=1 thì APP VẪN LOCKED!", lockResult.isLocked)
+    }
+
+    @Test
+    fun test_DELETE_N3_K1_Denied() {
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 3, completedRewardTasks = 1))
+    }
+
+    @Test
+    fun test_DELETE_N3_K2_Allowed() {
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 3, completedRewardTasks = 2))
     }
 }

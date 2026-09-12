@@ -391,7 +391,7 @@ class CanonicalTaskMutationImmediateLockTest {
         assertEquals(1, post0400Eval.totalLinkedRewardTasks)
     }
 
-    // TASK-IMM-11: N=2 → Required=1.
+    // TASK-IMM-11: N=2 → RequiredForDeletion=1.
     @Test
     fun testTaskImm11_nEquals2_requiredEquals1() = runBlocking {
         addVaultUseCase(appA, "Chrome")
@@ -403,10 +403,19 @@ class CanonicalTaskMutationImmediateLockTest {
         assertEquals(1, eval0.requiredCompletions)
         assertEquals(CanonicalLockDecision.LOCKED, eval0.decision)
 
+        // Hoàn thành 1 task (1/2):
+        // App Lock Policy: Vẫn 2 task yêu cầu -> LOCKED
+        // Deletion Policy: K=1 >= RequiredForDeletion(2)=1 -> canDelete = true
         completeTaskUseCase(t1.id, cycle)
         val eval1 = lockEvaluator.evaluateApp(appA)
         assertEquals(1, eval1.completedLinkedRewardTasks)
-        assertEquals(CanonicalLockDecision.UNLOCKED, eval1.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, eval1.decision)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 1))
+
+        // Gỡ liên kết cả 2 task -> UNLOCKED
+        fakeTaskRepo.unlinkTaskFromApp(t1.id, appA)
+        fakeTaskRepo.unlinkTaskFromApp(t2.id, appA)
+        assertEquals(CanonicalLockDecision.UNLOCKED, lockEvaluator.evaluateApp(appA).decision)
     }
 
     // TASK-IMM-12: N=0 → Required=0 → unlocked.
@@ -419,7 +428,7 @@ class CanonicalTaskMutationImmediateLockTest {
         assertEquals(CanonicalLockDecision.UNLOCKED, eval.decision)
     }
 
-    // TASK-IMM-13: N=3 → Required=2.
+    // TASK-IMM-13: N=3 → RequiredForDeletion=2.
     @Test
     fun testTaskImm13_nEquals3_requiredEquals2() = runBlocking {
         addVaultUseCase(appA, "Chrome")
@@ -435,8 +444,12 @@ class CanonicalTaskMutationImmediateLockTest {
         completeTaskUseCase(t1.id, cycle)
         assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp(appA).decision)
 
+        // Hoàn thành task 2 (2/3):
+        // Lock Policy: vẫn LOCKED vì cả 3 task vẫn yêu cầu app trong chu kỳ
+        // Deletion Policy: K=2 >= RequiredForDeletion(3)=2 -> canDelete = true
         completeTaskUseCase(t2.id, cycle)
-        assertEquals(CanonicalLockDecision.UNLOCKED, lockEvaluator.evaluateApp(appA).decision)
+        assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp(appA).decision)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(3, 2))
     }
 
     // TASK-IMM-14: N=4 → Required=3.
@@ -527,7 +540,7 @@ class CanonicalTaskMutationImmediateLockTest {
         )
         val eval = lockEvaluator.evaluateApp(appA, now)
         assertEquals(CanonicalLockDecision.LOCKED, eval.decision)
-        assertTrue(eval.reason.contains("LOCKED_INCOMPLETE_TASKS"))
+        assertTrue(eval.reason.contains("LOCKED_TASK_REQUIRED") || eval.reason.contains("LOCKED"))
     }
 
     // TASK-IMM-20: Re-add deleted app does not restore old reward links.

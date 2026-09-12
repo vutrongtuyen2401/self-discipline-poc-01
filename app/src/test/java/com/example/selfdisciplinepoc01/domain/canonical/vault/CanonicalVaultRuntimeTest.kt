@@ -123,7 +123,7 @@ class CanonicalVaultRuntimeTest {
     }
 
     // -------------------------------------------------------------------------
-    // VB-A03: N=1, K=1 -> UNLOCKED
+    // VB-A03: N=1, K=1 -> STILL LOCKED (Reward link remains active in current cycle)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A03_N1_K1_unlocked() = runBlocking {
@@ -133,15 +133,22 @@ class CanonicalVaultRuntimeTest {
         taskRepository.completeTask("task_1", cycleId, now)
 
         val result = lockEvaluator.evaluateApp("com.app.n1", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("Hoàn thành task nhưng link vẫn còn -> VẪN LOCKED", CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(1, result.totalLinkedRewardTasks)
         assertEquals(1, result.completedLinkedRewardTasks)
-        assertEquals(1, result.requiredCompletions)
-        assertTrue(result.isUnlocked)
+        assertTrue(result.isLocked)
+
+        // Phân tách: Đủ điều kiện xóa khỏi Vault
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Chỉ khi unlink khỏi app thì app mới UNLOCKED
+        taskRepository.unlinkTaskFromApp("task_1", "com.app.n1")
+        val unlinkedResult = lockEvaluator.evaluateApp("com.app.n1", now)
+        assertTrue(unlinkedResult.isUnlocked)
     }
 
     // -------------------------------------------------------------------------
-    // VB-A04: N=2 -> Required=1 (K=0 -> LOCKED, K=1 -> UNLOCKED)
+    // VB-A04: N=2 -> RequiredForDeletion=1 (K=1 -> STILL LOCKED, Delete ALLOWED)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A04_N2_required1() = runBlocking {
@@ -155,18 +162,20 @@ class CanonicalVaultRuntimeTest {
         var result = lockEvaluator.evaluateApp("com.app.n2", now)
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(2, result.totalLinkedRewardTasks)
-        assertEquals(1, result.requiredCompletions)
+        assertEquals(1, result.requiredCompletions) // requiredForDeletion = 1
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(2, 0))
 
-        // K=1 -> UNLOCKED (Đặc xá khởi đầu theo SSOT)
+        // K=1 -> VẪN LOCKED theo Lock Policy, nhưng ĐỦ ĐIỀU KIỆN XÓA theo Deletion Policy
         taskRepository.completeTask("t1", cycleId, now)
         result = lockEvaluator.evaluateApp("com.app.n2", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("N=2 K=1 -> VẪN LOCKED vì còn task yêu cầu", CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(1, result.completedLinkedRewardTasks)
         assertEquals(1, result.requiredCompletions)
+        assertTrue("N=2 K=1 -> Đủ điều kiện xóa app khỏi Vault", CanonicalAppDeletionPolicy.canDelete(2, 1))
     }
 
     // -------------------------------------------------------------------------
-    // VB-A05: N=3 -> Required=2 (K=1 -> LOCKED, K=2 -> UNLOCKED)
+    // VB-A05: N=3 -> RequiredForDeletion=2 (K=1,2 -> STILL LOCKED)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A05_N3_required2() = runBlocking {
@@ -181,15 +190,17 @@ class CanonicalVaultRuntimeTest {
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(2, result.requiredCompletions)
         assertEquals(1, result.completedLinkedRewardTasks)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(3, 1))
 
         taskRepository.completeTask("t2", cycleId, now)
         result = lockEvaluator.evaluateApp("com.app.n3", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("N=3 K=2 -> VẪN LOCKED theo Lock Policy", CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(2, result.completedLinkedRewardTasks)
+        assertTrue("N=3 K=2 -> Đủ điều kiện xóa app khỏi Vault", CanonicalAppDeletionPolicy.canDelete(3, 2))
     }
 
     // -------------------------------------------------------------------------
-    // VB-A06: N=4 -> Required=3 (K=2 -> LOCKED, K=3 -> UNLOCKED)
+    // VB-A06: N=4 -> RequiredForDeletion=3 (K=2,3 -> STILL LOCKED)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A06_N4_required3() = runBlocking {
@@ -204,14 +215,16 @@ class CanonicalVaultRuntimeTest {
         var result = lockEvaluator.evaluateApp("com.app.n4", now)
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(3, result.requiredCompletions)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(4, 2))
 
         taskRepository.completeTask("t3", cycleId, now)
         result = lockEvaluator.evaluateApp("com.app.n4", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("N=4 K=3 -> VẪN LOCKED", CanonicalLockDecision.LOCKED, result.decision)
+        assertTrue("N=4 K=3 -> Đủ điều kiện xóa app", CanonicalAppDeletionPolicy.canDelete(4, 3))
     }
 
     // -------------------------------------------------------------------------
-    // VB-A07: N=5 -> Required=4 (K=3 -> LOCKED, K=4 -> UNLOCKED)
+    // VB-A07: N=5 -> RequiredForDeletion=4 (K=3,4 -> STILL LOCKED)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A07_N5_required4() = runBlocking {
@@ -225,14 +238,16 @@ class CanonicalVaultRuntimeTest {
         var result = lockEvaluator.evaluateApp("com.app.n5", now)
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(4, result.requiredCompletions)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(5, 3))
 
         taskRepository.completeTask("t4", cycleId, now)
         result = lockEvaluator.evaluateApp("com.app.n5", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("N=5 K=4 -> VẪN LOCKED", CanonicalLockDecision.LOCKED, result.decision)
+        assertTrue("N=5 K=4 -> Đủ điều kiện xóa app", CanonicalAppDeletionPolicy.canDelete(5, 4))
     }
 
     // -------------------------------------------------------------------------
-    // VB-A08: N=6 -> Required=4 (K=3 -> LOCKED, K=4 -> UNLOCKED)
+    // VB-A08: N=6 -> RequiredForDeletion=4 (K=3,4 -> STILL LOCKED)
     // -------------------------------------------------------------------------
     @Test
     fun test_VB_A08_N6_required4() = runBlocking {
@@ -246,10 +261,12 @@ class CanonicalVaultRuntimeTest {
         var result = lockEvaluator.evaluateApp("com.app.n6", now)
         assertEquals(CanonicalLockDecision.LOCKED, result.decision)
         assertEquals(4, result.requiredCompletions)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(6, 3))
 
         taskRepository.completeTask("t4", cycleId, now)
         result = lockEvaluator.evaluateApp("com.app.n6", now)
-        assertEquals(CanonicalLockDecision.UNLOCKED, result.decision)
+        assertEquals("N=6 K=4 -> VẪN LOCKED", CanonicalLockDecision.LOCKED, result.decision)
+        assertTrue("N=6 K=4 -> Đủ điều kiện xóa app", CanonicalAppDeletionPolicy.canDelete(6, 4))
     }
 
     // -------------------------------------------------------------------------
@@ -309,10 +326,17 @@ class CanonicalVaultRuntimeTest {
         assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.x", now).decision)
         assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.y", now).decision)
 
-        // Hoàn thành shared_task -> Cả 2 apps đều UNLOCKED cùng lúc
+        // Hoàn thành shared_task -> Cả 2 apps VẪN LOCKED theo Lock Policy vì task link vẫn còn trong chu kỳ
         taskRepository.completeTask("shared_task", cycleId, now)
+        assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.x", now).decision)
+        assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.y", now).decision)
+        // Cả 2 apps đều đủ điều kiện xóa khỏi Vault theo Deletion Policy
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Gỡ liên kết khỏi App X -> App X UNLOCKED, App Y vẫn LOCKED độc lập
+        taskRepository.unlinkTaskFromApp("shared_task", "com.app.x")
         assertEquals(CanonicalLockDecision.UNLOCKED, lockEvaluator.evaluateApp("com.app.x", now).decision)
-        assertEquals(CanonicalLockDecision.UNLOCKED, lockEvaluator.evaluateApp("com.app.y", now).decision)
+        assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.y", now).decision)
     }
 
     // -------------------------------------------------------------------------
@@ -395,21 +419,26 @@ class CanonicalVaultRuntimeTest {
         taskRepository.linkTaskToApp("task_del", "com.app.a")
 
         taskRepository.completeTask("task_comp", cycleId, now)
-        // N=2, K=1 -> Required=1 -> UNLOCKED
-        assertEquals(CanonicalLockDecision.UNLOCKED, lockEvaluator.evaluateApp("com.app.a", now).decision)
+        // N=2, K=1 -> VẪN LOCKED theo Lock Policy (nhưng canDelete == true)
+        assertEquals(CanonicalLockDecision.LOCKED, lockEvaluator.evaluateApp("com.app.a", now).decision)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(2, 1))
 
         // Xóa task_del qua DeleteTaskUseCase
         val deleteUseCase = DeleteTaskUseCase(taskRepository, lockEvaluator)
         deleteUseCase("task_del", now)
 
-        // App A giờ chỉ còn 1 task (task_comp) đã hoàn thành -> N=1, K=1 -> vẫn UNLOCKED
+        // App A giờ chỉ còn 1 task (task_comp) đã hoàn thành -> N=1, K=1 -> VẪN LOCKED vì task_comp vẫn liên kết
         val eval = lockEvaluator.evaluateApp("com.app.a", now)
         assertEquals(1, eval.totalLinkedRewardTasks)
         assertEquals(1, eval.completedLinkedRewardTasks)
-        assertEquals(CanonicalLockDecision.UNLOCKED, eval.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, eval.decision)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
 
-        // Lịch sử của task_comp vẫn nguyên vẹn
-        assertTrue(taskRepository.getCycleState("task_comp", cycleId)!!.isCompleted)
+        // Chỉ khi xóa nốt task_comp hoặc unlink thì mới UNLOCKED
+        deleteUseCase("task_comp", now)
+        val finalEval = lockEvaluator.evaluateApp("com.app.a", now)
+        assertEquals(CanonicalLockDecision.UNLOCKED, finalEval.decision)
+        assertEquals(0, finalEval.totalLinkedRewardTasks)
     }
 
     // -------------------------------------------------------------------------

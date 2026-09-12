@@ -139,6 +139,12 @@ class CanonicalRuntimeIntegrationTest {
      * TEST A — UNLOCKED APP
      * Managed app trong Vault với nhiệm vụ liên kết đã hoàn thành đủ -> app mở bình thường (ALLOW).
      */
+    /**
+     * TEST A — APP LOCK RULE
+     * Managed app trong Vault với nhiệm vụ liên kết:
+     * Hoàn thành nhiệm vụ vẫn không làm mất liên kết yêu cầu -> app vẫn LOCKED.
+     * Chỉ khi không còn nhiệm vụ yêu cầu (unlink) -> UNLOCKED (ALLOW).
+     */
     @Test
     fun testA_unlockedApp() = runBlocking {
         val pkg = "com.test.app_a"
@@ -153,10 +159,18 @@ class CanonicalRuntimeIntegrationTest {
         adapter.recomputeSnapshot()
         val details = adapter.evaluateSync(pkg)
 
-        assertEquals(EnforcementAction.ALLOW, details.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details.reason)
+        // SSOT LOCK RULE: app vẫn LOCKED vì vẫn có 1 task yêu cầu trong chu kỳ
+        assertEquals(EnforcementAction.LOCK, details.finalAction)
         assertTrue(details.isVaultApp)
         assertEquals(1, details.completedLinkedTasksCount)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Gỡ liên kết -> app UNLOCKED
+        taskRepo.unlinkTaskFromApp(task.id, pkg)
+        adapter.recomputeSnapshot()
+        val unlinkedDetails = adapter.evaluateSync(pkg)
+        assertEquals(EnforcementAction.ALLOW, unlinkedDetails.finalAction)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, unlinkedDetails.reason)
     }
 
     /**
@@ -182,8 +196,9 @@ class CanonicalRuntimeIntegrationTest {
 
     /**
      * TEST C — N=2
-     * 2 nhiệm vụ liên kết, hoàn thành 1 -> Required = 1 -> UNLOCKED (ALLOW).
-     * Bắt và khắc phục triệt để lỗi N=2 của legacy formula.
+     * 2 nhiệm vụ liên kết, hoàn thành 1:
+     * - App Lock Policy: Vẫn 2 nhiệm vụ liên kết trong chu kỳ -> LOCKED.
+     * - Deletion Policy: 1 >= RequiredForDeletion(2)=1 -> canDelete = true.
      */
     @Test
     fun testC_nEqualsTwo() = runBlocking {
@@ -202,10 +217,17 @@ class CanonicalRuntimeIntegrationTest {
         adapter.recomputeSnapshot()
         val details = adapter.evaluateSync(pkg)
 
-        assertEquals(1, details.requiredTasksCount) // SSOT: N=2 -> Required=1
+        assertEquals(1, details.requiredTasksCount) // SSOT Deletion: N=2 -> RequiredForDeletion=1
         assertEquals(1, details.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, details.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details.reason)
+        assertEquals(EnforcementAction.LOCK, details.finalAction)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 1))
+
+        // Gỡ liên kết 2 task -> UNLOCKED
+        taskRepo.unlinkTaskFromApp(task1.id, pkg)
+        taskRepo.unlinkTaskFromApp(task2.id, pkg)
+        adapter.recomputeSnapshot()
+        val unlinkedDetails = adapter.evaluateSync(pkg)
+        assertEquals(EnforcementAction.ALLOW, unlinkedDetails.finalAction)
     }
 
     /**
@@ -337,7 +359,9 @@ class CanonicalRuntimeIntegrationTest {
 
     /**
      * TEST J — FOREGROUND AT 04:00
-     * Chuyển chu kỳ lúc 04:00:00 khi Vault app bị khóa ở foreground -> kích hoạt push-to-Home & LockScreen flow.
+     * Chuyển chu kỳ lúc 04:00:00:
+     * Trước 04:00: app có voucher còn hạn -> UNLOCKED (ALLOW).
+     * Sang 04:00:00: voucher hết hạn hoặc chu kỳ mới recompute -> app quay về LOCKED vì task yêu cầu vẫn còn.
      */
     @Test
     fun testJ_foregroundAtFourAm() = runBlocking {
@@ -347,11 +371,17 @@ class CanonicalRuntimeIntegrationTest {
         taskRepo.saveTask(task)
         taskRepo.linkTaskToApp(task.id, pkg)
 
-        // Tại thời điểm trước 04:00 (chu kỳ cũ), task đã hoàn thành -> app đang UNLOCKED
+        // Trước 04:00: có voucher hiệu lực -> ALLOW
         val oldInstant = LocalDateTime.of(2026, 9, 11, 3, 30, 0).atZone(currentZoneId).toInstant()
         currentTestInstant = oldInstant
-        val oldCycle = cycleRepo.getCurrentCycle(oldInstant)
-        taskRepo.completeTask(task.id, oldCycle.cycleId, oldInstant)
+        val voucher = VoucherEffect(
+            voucherId = "v_j",
+            voucherName = "Voucher J",
+            targetPackageName = pkg,
+            effectiveFrom = oldInstant.minusSeconds(60),
+            effectiveUntil = oldInstant.plusSeconds(1200) // hết hạn trước 04:00
+        )
+        vaultRepo.saveVoucher(voucher)
 
         adapter.recomputeSnapshot()
         assertEquals(EnforcementAction.ALLOW, adapter.evaluateSync(pkg).finalAction)
@@ -360,7 +390,7 @@ class CanonicalRuntimeIntegrationTest {
         val newInstant = LocalDateTime.of(2026, 9, 11, 4, 0, 0).atZone(currentZoneId).toInstant()
         currentTestInstant = newInstant
 
-        // Chu kỳ mới chưa hoàn thành task -> App chuyển thành LOCKED
+        // Chu kỳ mới: voucher đã hết hạn, task yêu cầu vẫn còn -> App chuyển thành LOCKED
         adapter.recomputeSnapshot()
         val detailsNewCycle = adapter.evaluateSync(pkg)
         assertEquals(EnforcementAction.LOCK, detailsNewCycle.finalAction)
@@ -431,12 +461,7 @@ class CanonicalRuntimeIntegrationTest {
     fun testO_legacyEngineCannotOverrideVaultApp() = runBlocking {
         val pkg = "com.test.app_o"
         vaultRepo.addVaultApp(CanonicalVaultApp(packageName = pkg, displayName = "App O"))
-        val task = CanonicalTask(id = "task_o", title = "Task O", isArchived = false)
-        taskRepo.saveTask(task)
-        taskRepo.linkTaskToApp(task.id, pkg)
-
-        val cycleId = cycleRepo.getCurrentCycle(currentTestInstant).cycleId
-        taskRepo.completeTask(task.id, cycleId, currentTestInstant)
+        // App O là Vault App N=0 (chưa có task liên kết -> ALLOW theo SSOT)
 
         // Cấu hình fake legacy target bị khóa bởi Technical Lock 24/7
         fakeTargetRepo.targets[pkg] = LockedApp(
@@ -449,7 +474,7 @@ class CanonicalRuntimeIntegrationTest {
         val policyDecision = policyEngine.evaluate(pkg)
         assertEquals(PolicyDecision.LOCK, policyDecision)
 
-        // Nhưng với Vault App: CanonicalLockPolicy là tối thượng!
+        // Nhưng với Vault App: CanonicalLockPolicy là tối thượng! (N=0 -> ALLOW, legacy lock không override được)
         adapter.recomputeSnapshot()
         val details = adapter.evaluateSync(pkg)
 

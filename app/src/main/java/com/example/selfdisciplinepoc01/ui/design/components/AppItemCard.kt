@@ -71,7 +71,7 @@ fun AppItemGridCard(
                     borderColor = CultivationTheme.colors.spiritTeal.copy(alpha = 0.6f)
                 )
                 EnforcementReason.LOCKED_INSUFFICIENT_TASKS -> EnforcementBadgeConfig(
-                    text = "Cần ${enforcement.requiredTasksCount}/${enforcement.totalLinkedTasksCount} (Xong ${enforcement.completedLinkedTasksCount})",
+                    text = "Phong ấn (${enforcement.completedLinkedTasksCount}/${enforcement.totalLinkedTasksCount})",
                     backgroundColor = CultivationTheme.colors.celestialGoldMuted,
                     textColor = CultivationTheme.colors.celestialGold,
                     borderColor = CultivationTheme.colors.etherealIndigo.copy(alpha = 0.5f)

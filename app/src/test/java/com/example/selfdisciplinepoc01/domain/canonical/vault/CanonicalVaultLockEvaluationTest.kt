@@ -89,27 +89,31 @@ class CanonicalVaultLockEvaluationTest {
     }
 
     @Test
-    fun test04_enoughCompletedTasksUnlocks() {
+    fun test04_completedTasksDoNotUnlockAppWhileRequirementsRemain() {
         val tasks = listOf(
             CanonicalTask(id = "t1", title = "Task 1", hasReward = true),
             CanonicalTask(id = "t2", title = "Task 2", hasReward = true),
             CanonicalTask(id = "t3", title = "Task 3", hasReward = true)
         )
-        // N=3, required = 2. Hoàn thành 2 task (2 >= 2) -> UNLOCKED
+        // Hoàn thành 2 trong 3 tasks. Dù K=2 >= 2/3, App VẪN LOCKED vì vẫn còn tasks yêu cầu app trong chu kỳ!
         val states = mapOf(
             "t1" to TaskCycleState("t1", currentCycle, TaskCycleStatus.COMPLETED),
             "t2" to TaskCycleState("t2", currentCycle, TaskCycleStatus.COMPLETED)
         )
 
-        val res = CanonicalLockPolicy.evaluateLock(
+        val res = CanonicalAppLockPolicy.evaluateLock(
             packageName = appA,
             linkedTasks = tasks,
             cycleTaskStates = states
         )
 
-        assertTrue("Đạt đủ ngưỡng yêu cầu => UNLOCKED", res.isUnlocked)
-        assertEquals(CanonicalLockDecision.UNLOCKED, res.decision)
+        assertTrue("Có task liên kết còn hiệu lực trong chu kỳ => VẪN LOCKED theo SSOT", res.isLocked)
+        assertEquals(CanonicalLockDecision.LOCKED, res.decision)
         assertEquals(2, res.completedLinkedRewardTasks)
+        assertEquals(3, res.totalLinkedRewardTasks)
+
+        // NHƯNG đủ điều kiện xóa khỏi Vault theo Deletion Policy:
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 3, completedRewardTasks = 2))
     }
 
     @Test
@@ -169,9 +173,9 @@ class CanonicalVaultLockEvaluationTest {
         val taskShared = CanonicalTask(id = "t_shared", title = "Nhiệm vụ chung", hasReward = true)
         val taskOnlyB = CanonicalTask(id = "t_only_b", title = "Nhiệm vụ riêng App B", hasReward = true)
 
-        // App A liên kết với t_shared (N=1, req=1)
+        // App A liên kết với t_shared (N=1)
         val tasksForA = listOf(taskShared)
-        // App B liên kết với cả 2 tasks (N=2, req=1)
+        // App B liên kết với cả 2 tasks (N=2)
         val tasksForB = listOf(taskShared, taskOnlyB)
 
         // Chỉ hoàn thành taskOnlyB
@@ -179,14 +183,23 @@ class CanonicalVaultLockEvaluationTest {
             "t_only_b" to TaskCycleState("t_only_b", currentCycle, TaskCycleStatus.COMPLETED)
         )
 
-        val resA = CanonicalLockPolicy.evaluateLock(appA, tasksForA, states)
-        val resB = CanonicalLockPolicy.evaluateLock(appB, tasksForB, states)
+        val resA = CanonicalAppLockPolicy.evaluateLock(appA, tasksForA, states)
+        val resB = CanonicalAppLockPolicy.evaluateLock(appB, tasksForB, states)
 
-        // App A: t_shared chưa xong (0/1) -> LOCKED
-        assertTrue("App A phải LOCKED vì chưa hoàn thành task chung", resA.isLocked)
-        // App B: N=2 có đặc xá (req=1), đã hoàn thành t_only_b (1/2 >= 1) -> UNLOCKED
-        assertTrue("App B phải UNLOCKED vì đã hoàn thành 1/2 nhiệm vụ nhờ đặc xá N=2", resB.isUnlocked)
+        // App A: có t_shared yêu cầu (N=1) -> LOCKED
+        assertTrue("App A phải LOCKED vì có task yêu cầu", resA.isLocked)
+        // App B: có 2 tasks yêu cầu (N=2) -> cũng VẪN LOCKED vì vẫn có task yêu cầu
+        assertTrue("App B phải LOCKED vì vẫn có task yêu cầu trong chu kỳ", resB.isLocked)
+
+        // Nhưng nếu gỡ toàn bộ task yêu cầu của App A (unlink)
+        val resAUnlinked = CanonicalAppLockPolicy.evaluateLock(appA, emptyList(), states)
+        assertTrue("App A sau khi không còn task yêu cầu nào thì UNLOCKED", resAUnlinked.isUnlocked)
+        // App B vẫn giữ 2 tasks -> Vẫn LOCKED
+        val resBStillLinked = CanonicalAppLockPolicy.evaluateLock(appB, tasksForB, states)
+        assertTrue("App B vẫn có tasks yêu cầu -> Vẫn LOCKED độc lập", resBStillStillLinked(resBStillLinked))
     }
+
+    private fun resBStillStillLinked(res: LockEvaluationResult): Boolean = res.isLocked
 
     @Test
     fun test08_duplicateTasksDoNotInflateN() {

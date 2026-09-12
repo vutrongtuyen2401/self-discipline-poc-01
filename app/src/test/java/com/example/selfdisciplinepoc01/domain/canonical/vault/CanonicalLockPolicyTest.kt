@@ -108,8 +108,8 @@ class CanonicalLockPolicyTest {
         assertEquals(1, evalResultPending.requiredCompletions)
         assertTrue("Chưa hoàn thành task có thưởng thì phải LOCKED", evalResultPending.isLocked)
 
-        // Khi hoàn thành task có thưởng: completed = 1 >= required (1) => UNLOCKED
-        val evalResultCompleted = CanonicalLockPolicy.evaluateLock(
+        // Khi hoàn thành task có thưởng: completed = 1 nhưng reward link vẫn tồn tại -> VẪN LOCKED
+        val evalResultCompleted = CanonicalAppLockPolicy.evaluateLock(
             packageName = testAppPkg,
             linkedTasks = linkedTasks,
             cycleTaskStates = mapOf(
@@ -117,39 +117,47 @@ class CanonicalLockPolicyTest {
             )
         )
 
-        assertTrue("Hoàn thành đủ task thưởng => UNLOCKED", evalResultCompleted.isUnlocked)
+        assertTrue("Hoàn thành task nhưng reward link vẫn còn hiệu lực => VẪN LOCKED", evalResultCompleted.isLocked)
         assertEquals(1, evalResultCompleted.completedLinkedRewardTasks)
+        assertEquals(1, evalResultCompleted.totalLinkedRewardTasks)
+
+        // NHƯNG đủ điều kiện xóa khỏi Vault theo Deletion Policy:
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 1, completedRewardTasks = 1))
     }
 
     // ==================================================
-    // INVARIANT 5: ĐẶC XÁ N=2 -> REQUIRED = 1
+    // DELETION POLICY INVARIANT: ĐẶC XÁ N=2 -> REQUIRED FOR DELETION = 1
     // ==================================================
 
     @Test
-    fun test04_amnestyForN2RequiresOnlyOneTask() {
+    fun test04_amnestyForN2RequiresOnlyOneTaskForDeletionWhileAppStillLocked() {
         val task1 = CanonicalTask(id = "t1", title = "Nhiệm vụ 1", hasReward = true)
         val task2 = CanonicalTask(id = "t2", title = "Nhiệm vụ 2", hasReward = true)
         val tasks = listOf(task1, task2)
 
-        // Chưa làm nhiệm vụ nào (0/2) => LOCKED
-        val res0 = CanonicalLockPolicy.evaluateLock(
+        // Chưa làm nhiệm vụ nào (0/2) => LOCKED và KHÔNG được xóa
+        val res0 = CanonicalAppLockPolicy.evaluateLock(
             packageName = testAppPkg,
             linkedTasks = tasks,
             cycleTaskStates = emptyMap()
         )
         assertTrue(res0.isLocked)
-        assertEquals(1, res0.requiredCompletions)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 2, completedRewardTasks = 0))
 
-        // Hoàn thành 1 trong 2 nhiệm vụ (1/2) => UNLOCKED do đặc xá N=2
-        val res1 = CanonicalLockPolicy.evaluateLock(
+        // Hoàn thành 1 trong 2 nhiệm vụ (1/2) => ĐƯỢC PHÉP XÓA nhưng APP VẪN LOCKED!
+        val res1 = CanonicalAppLockPolicy.evaluateLock(
             packageName = testAppPkg,
             linkedTasks = tasks,
             cycleTaskStates = mapOf(
                 "t1" to TaskCycleState("t1", currentCycle, TaskCycleStatus.COMPLETED)
             )
         )
-        assertTrue("N=2 chỉ cần hoàn thành 1 task là phải UNLOCKED theo SSOT", res1.isUnlocked)
+        assertTrue("N=2 có K=1 thì APP VẪN LOCKED theo Lock Policy", res1.isLocked)
         assertEquals(1, res1.completedLinkedRewardTasks)
+        assertEquals(2, res1.totalLinkedRewardTasks)
+
+        // ĐẶC XÁ 2/3 CHO PHÉP XÓA APP:
+        assertTrue("N=2 có K=1 thì ĐỦ ĐIỀU KIỆN XÓA APP theo Deletion Policy", CanonicalAppDeletionPolicy.canDelete(totalLinkedRewardTasks = 2, completedRewardTasks = 1))
     }
 
     // ==================================================

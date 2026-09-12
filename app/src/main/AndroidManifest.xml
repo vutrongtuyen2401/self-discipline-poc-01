@@ -35,6 +35,7 @@
             android:name=".LockScreenActivity"
             android:exported="false"
             android:launchMode="singleTop"
+            android:taskAffinity="com.example.selfdisciplinepoc01.lock"
             android:theme="@style/Theme.SelfDisciplinePoc01.LockScreen" />
 
 
@@ -56,6 +57,14 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.example.selfdisciplinepoc01.ACTION_CYCLE_TRANSITION_0400" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.CanonicalTestSeamReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.selfdisciplinepoc01.ACTION_CANONICAL_TEST" />
             </intent-filter>
         </receiver>
 

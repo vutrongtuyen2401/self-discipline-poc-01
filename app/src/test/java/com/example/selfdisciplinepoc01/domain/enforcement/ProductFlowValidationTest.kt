@@ -7,6 +7,7 @@ import com.example.selfdisciplinepoc01.data.database.AppDatabase
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryImpl
 import com.example.selfdisciplinepoc01.domain.discovery.InstalledAppDiscoveryService
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy
 import com.example.selfdisciplinepoc01.domain.model.DiscoveredApp
 import com.example.selfdisciplinepoc01.domain.usecase.AddVaultAppUseCase
 import com.example.selfdisciplinepoc01.domain.usecase.ArchiveTaskUseCase
@@ -38,6 +39,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -192,24 +194,35 @@ class ProductFlowValidationTest {
         assertEquals(EnforcementReason.LOCKED_INSUFFICIENT_TASKS, eval1Of3.reason)
         assertEquals(1, eval1Of3.completedLinkedTasksCount)
         assertEquals(2, eval1Of3.requiredTasksCount)
+        // Deletion check: N=3, K=1 < 2 -> false
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(3, 1))
 
-        // 7. Hoàn thành Task 2 -> 2/3 -> Đạt ngưỡng (2 >= 2) -> ALLOW
+        // 7. Hoàn thành Task 2 -> 2/3:
+        // App Lock Policy: Vẫn 3 nhiệm vụ liên kết trong chu kỳ hiện tại -> Vẫn LOCK
+        // Deletion Policy: K=2 >= RequiredForDeletion(3)=2 -> canDelete = true
         completeTaskUseCase(t2)
         adapter.recomputeSnapshot()
         val eval2Of3 = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, eval2Of3.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, eval2Of3.reason)
+        assertEquals(EnforcementAction.LOCK, eval2Of3.finalAction)
         assertEquals(2, eval2Of3.completedLinkedTasksCount)
         assertEquals(2, eval2Of3.requiredTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(3, 2))
 
-        // 8. Hoàn thành Task 3 -> 3/3 -> Vẫn ALLOW
+        // 8. Hoàn thành Task 3 -> 3/3 -> Vẫn LOCK vì cả 3 reward links vẫn tồn tại
         completeTaskUseCase(t3)
         adapter.recomputeSnapshot()
         val eval3Of3 = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, eval3Of3.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, eval3Of3.reason)
+        assertEquals(EnforcementAction.LOCK, eval3Of3.finalAction)
         assertEquals(3, eval3Of3.completedLinkedTasksCount)
-        assertEquals(2, eval3Of3.requiredTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(3, 3))
+
+        // 9. Khi gỡ toàn bộ liên kết (hoặc app không còn task yêu cầu) -> UNLOCKED (ALLOW)
+        updateTaskLinkedAppsUseCase(t1, emptyList())
+        updateTaskLinkedAppsUseCase(t2, emptyList())
+        updateTaskLinkedAppsUseCase(t3, emptyList())
+        adapter.recomputeSnapshot()
+        val evalUnlinked = adapter.evaluateSync(pkg)
+        assertEquals(EnforcementAction.ALLOW, evalUnlinked.finalAction)
     }
 
     @Test
@@ -227,8 +240,8 @@ class ProductFlowValidationTest {
         updateTaskLinkedAppsUseCase(t3, listOf(pkg))
         updateTaskLinkedAppsUseCase(t4, listOf(pkg))
 
-        // N = 4 -> required = (2*4+2)/3 = 3
-        // 2/4 -> LOCK
+        // N = 4 -> RequiredForDeletion = ceil(2*4/3) = 3
+        // 2/4 -> LOCK, canDelete = false
         completeTaskUseCase(t1)
         completeTaskUseCase(t2)
         adapter.recomputeSnapshot()
@@ -239,15 +252,16 @@ class ProductFlowValidationTest {
         assertEquals(2, eval2Of4.completedLinkedTasksCount)
         assertEquals(4, eval2Of4.totalLinkedTasksCount)
         assertEquals(3, eval2Of4.requiredTasksCount)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(4, 2))
 
-        // 3/4 -> ALLOW
+        // 3/4 -> Vẫn LOCK (Lock Policy: requiredTaskCount > 0), nhưng canDelete = true
         completeTaskUseCase(t3)
         adapter.recomputeSnapshot()
 
         val eval3Of4 = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, eval3Of4.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, eval3Of4.reason)
+        assertEquals(EnforcementAction.LOCK, eval3Of4.finalAction)
         assertEquals(3, eval3Of4.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(4, 3))
     }
 
     @Test
@@ -258,8 +272,8 @@ class ProductFlowValidationTest {
         val tasks = (1..5).map { createTaskUseCase("Nhiệm vụ $it").getOrThrow() }
         tasks.forEach { updateTaskLinkedAppsUseCase(it, listOf(pkg)) }
 
-        // N = 5 -> required = (2*5+2)/3 = 4
-        // Hoàn thành 3 tasks (3/5) -> LOCK
+        // N = 5 -> RequiredForDeletion = ceil(2*5/3) = 4
+        // Hoàn thành 3 tasks (3/5) -> LOCK, canDelete = false
         completeTaskUseCase(tasks[0])
         completeTaskUseCase(tasks[1])
         completeTaskUseCase(tasks[2])
@@ -270,15 +284,16 @@ class ProductFlowValidationTest {
         assertEquals(EnforcementReason.LOCKED_INSUFFICIENT_TASKS, eval3Of5.reason)
         assertEquals(3, eval3Of5.completedLinkedTasksCount)
         assertEquals(4, eval3Of5.requiredTasksCount)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(5, 3))
 
-        // Hoàn thành task thứ 4 (4/5) -> ALLOW
+        // Hoàn thành task thứ 4 (4/5) -> Vẫn LOCK, canDelete = true
         completeTaskUseCase(tasks[3])
         adapter.recomputeSnapshot()
 
         val eval4Of5 = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, eval4Of5.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, eval4Of5.reason)
+        assertEquals(EnforcementAction.LOCK, eval4Of5.finalAction)
         assertEquals(4, eval4Of5.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(5, 4))
     }
 
     @Test
@@ -293,15 +308,23 @@ class ProductFlowValidationTest {
         updateTaskLinkedAppsUseCase(t2, listOf(pkg))
         updateTaskLinkedAppsUseCase(t3, listOf(pkg))
 
-        // Hoàn thành 3/3 nhiệm vụ -> Business đạt ALLOW
+        // Hoàn thành 3/3 nhiệm vụ -> Lock Policy: vẫn LOCK vì 3 liên kết vẫn tồn tại
         completeTaskUseCase(t1)
         completeTaskUseCase(t2)
         completeTaskUseCase(t3)
         adapter.recomputeSnapshot()
 
+        val evalStillLocked = adapter.evaluateSync(pkg)
+        assertEquals(EnforcementAction.LOCK, evalStillLocked.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(3, 3))
+
+        // Unlink toàn bộ nhiệm vụ -> App trở thành ALLOW
+        updateTaskLinkedAppsUseCase(t1, emptyList())
+        updateTaskLinkedAppsUseCase(t2, emptyList())
+        updateTaskLinkedAppsUseCase(t3, emptyList())
+        adapter.recomputeSnapshot()
         val evalAllowed = adapter.evaluateSync(pkg)
         assertEquals(EnforcementAction.ALLOW, evalAllowed.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, evalAllowed.reason)
 
         // Kích hoạt Technical Lock (Schedule cấm toàn bộ khung giờ)
         fakeTargetRepo.add(pkg)
@@ -336,21 +359,23 @@ class ProductFlowValidationTest {
         completeTaskUseCase(t2)
         adapter.recomputeSnapshot()
 
-        // 2/3 hoàn thành trong chu kỳ cũ -> ALLOW
+        // 2/3 hoàn thành trong chu kỳ cũ -> Vẫn LOCK (3 liên kết còn), canDelete = true
         val evalOldCycle = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, evalOldCycle.finalAction)
+        assertEquals(EnforcementAction.LOCK, evalOldCycle.finalAction)
         assertEquals(2, evalOldCycle.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(3, 2))
 
         // Chuyển sang 04:00:00 (Chu kỳ ngày mới bắt đầu)
         clock.setWallTime(ZonedDateTime.of(2026, 9, 8, 4, 0, 0, 0, testZone).toInstant().toEpochMilli())
         adapter.recomputeSnapshot()
 
-        // Trong chu kỳ mới, nhiệm vụ hôm qua không còn được tính -> 0/3 -> LOCK
+        // Trong chu kỳ mới, nhiệm vụ hôm qua không còn được tính completion -> 0/3 -> LOCK, canDelete = false
         val evalNewCycle = adapter.evaluateSync(pkg)
         assertEquals(EnforcementAction.LOCK, evalNewCycle.finalAction)
         assertEquals(EnforcementReason.LOCKED_INSUFFICIENT_TASKS, evalNewCycle.reason)
         assertEquals(0, evalNewCycle.completedLinkedTasksCount)
         assertEquals(2, evalNewCycle.requiredTasksCount)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(3, 0))
     }
 
     @Test
@@ -405,12 +430,19 @@ class ProductFlowValidationTest {
         assertEquals(1, eval.requiredTasksCount)
         assertEquals(EnforcementAction.LOCK, eval.finalAction)
 
-        // Hoàn thành task 1 -> 1/1 -> ALLOW
+        // Hoàn thành task 1 -> 1/1 -> Vẫn LOCK vì task 1 vẫn yêu cầu app, nhưng canDelete = true
         completeTaskUseCase(t1)
+        adapter.recomputeSnapshot()
+        val evalStillLocked = adapter.evaluateSync(pkg)
+        assertEquals(EnforcementAction.LOCK, evalStillLocked.finalAction)
+        assertEquals(1, evalStillLocked.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Gỡ task 1 khỏi app (hoặc archive task 1) -> N=0 -> ALLOW
+        archiveTaskUseCase(t1)
         adapter.recomputeSnapshot()
         val evalUnlocked = adapter.evaluateSync(pkg)
         assertEquals(EnforcementAction.ALLOW, evalUnlocked.finalAction)
-        assertEquals(1, evalUnlocked.completedLinkedTasksCount)
     }
 
     @Test
@@ -451,7 +483,10 @@ class ProductFlowValidationTest {
         assertEquals(3, details?.totalLinkedTasksCount)
         assertEquals(2, details?.completedLinkedTasksCount)
         assertEquals(2, details?.requiredTasksCount)
-        assertEquals(EnforcementAction.ALLOW, details?.finalAction)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details?.reason)
+        // SSOT LOCK RULE: app vẫn LOCK vì có 3 tasks liên kết còn hiệu lực trong cycle
+        assertEquals(EnforcementAction.LOCK, details?.finalAction)
+        assertEquals(EnforcementReason.LOCKED_INSUFFICIENT_TASKS, details?.reason)
+        // Deletion eligibility check: K=2 >= RequiredForDeletion(3) (2 >= 2) -> canDelete = true
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(details?.totalLinkedTasksCount ?: 0, details?.completedLinkedTasksCount ?: 0))
     }
 }

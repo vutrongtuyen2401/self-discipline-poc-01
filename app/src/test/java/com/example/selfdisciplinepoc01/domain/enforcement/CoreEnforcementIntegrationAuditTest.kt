@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.selfdisciplinepoc01.data.database.AppDatabase
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryImpl
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy
 import com.example.selfdisciplinepoc01.policy.PolicyDecision
 import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.model.LockedApp
@@ -166,33 +167,35 @@ class CoreEnforcementIntegrationAuditTest {
         // Technical: ALLOW
         assertEquals(PolicyDecision.ALLOW, policyEngine.evaluate(pkg))
 
-        // Business: 1/1 completed => Business ALLOW
+        // Business: còn task yêu cầu -> VẪN LOCKED
         val result = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Gỡ liên kết (N=0) -> ALLOW
+        coreRepository.unlinkTaskFromApp(t1, pkg)
+        val unlinkedResult = adapter.evaluate(pkg)
+        assertEquals(EnforcementAction.ALLOW, unlinkedResult.finalAction)
+        assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, unlinkedResult.businessUnlockDecision)
+        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, unlinkedResult.reason)
     }
 
     @Test
     fun test03_technicalLock_doesNotOverride_businessAllow_forVaultApp() = runBlocking {
         val pkg = "com.audit.case03"
         coreRepository.addVaultApp(pkg, "Case 03")
-        val t1 = coreRepository.createTask("Task 1")
-        coreRepository.linkTaskToApp(t1, pkg)
-
-        val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
-        coreRepository.setTaskCompletion(t1, today, true)
+        // N=0 (không có task nào yêu cầu)
 
         // Configure Technical Lock (24/7 permanent lock)
         fakeTargetRepo.apps[pkg] = LockedApp(packageName = pkg, enabled = true)
         assertEquals(PolicyDecision.LOCK, policyEngine.evaluate(pkg))
 
-        // MASTER SSOT & Phase 2A: Canonical Lock là tối thượng cho Vault App -> finalAction là ALLOW
+        // MASTER SSOT: Canonical Lock là tối thượng cho Vault App -> N=0 là ALLOW, Technical Lock không thể override
         val result = adapter.evaluate(pkg)
         assertEquals(EnforcementAction.ALLOW, result.finalAction)
         assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, result.reason)
         assertTrue(result.isTechnicalLockActive)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
+        assertEquals(BusinessUnlockDecision.NO_LINKED_TASKS, result.businessUnlockDecision)
     }
 
     @Test
@@ -257,12 +260,17 @@ class CoreEnforcementIntegrationAuditTest {
         val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, today, true)
 
-        // N=1, completed = 1 >= 1 => ALLOW (subject to Technical ALLOW)
+        // MASTER SSOT: N=1, task đã hoàn thành nhưng link vẫn còn -> VẪN LOCKED
         val result = adapter.evaluate(pkg)
         assertEquals(1, result.activeLinkedTasksCount)
         assertEquals(1, result.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Gỡ link -> UNLOCKED (ALLOW)
+        coreRepository.unlinkTaskFromApp(t1, pkg)
+        val unlinked = adapter.evaluate(pkg)
+        assertEquals(EnforcementAction.ALLOW, unlinked.finalAction)
     }
 
     @Test
@@ -277,13 +285,13 @@ class CoreEnforcementIntegrationAuditTest {
         val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, today, true)
 
-        // MASTER SSOT & Phase 2A: N=2, required = 1 (đặc xá khởi đầu). completed = 1 >= 1 => ALLOW
+        // N=2, K=1: VẪN LOCKED theo Lock Policy. ĐỦ ĐIỀU KIỆN XÓA theo Deletion Policy
         val result = adapter.evaluate(pkg)
         assertEquals(2, result.activeLinkedTasksCount)
         assertEquals(1, result.requiredTasksCount)
         assertEquals(1, result.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(2, 1))
     }
 
     @Test
@@ -299,13 +307,13 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.setTaskCompletion(t1, today, true)
         coreRepository.setTaskCompletion(t2, today, true)
 
-        // N=2, required = 1. completed = 2 >= 1 => ALLOW
+        // N=2, K=2: Cả hai task hoàn thành nhưng link vẫn còn -> VẪN LOCKED
         val result = adapter.evaluate(pkg)
         assertEquals(2, result.activeLinkedTasksCount)
         assertEquals(1, result.requiredTasksCount)
         assertEquals(2, result.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(2, 2))
     }
 
     @Test
@@ -323,13 +331,13 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.setTaskCompletion(t1, today, true)
         coreRepository.setTaskCompletion(t2, today, true)
 
-        // N=3, required = (2*3+2)/3 = 2. completed = 2 >= 2 => ALLOW
+        // N=3, K=2: VẪN LOCKED theo Lock Policy. ĐỦ ĐIỀU KIỆN XÓA theo Deletion Policy
         val result = adapter.evaluate(pkg)
         assertEquals(3, result.activeLinkedTasksCount)
         assertEquals(2, result.requiredTasksCount)
         assertEquals(2, result.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, result.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(3, 2))
     }
 
     @Test
@@ -417,8 +425,11 @@ class CoreEnforcementIntegrationAuditTest {
 
         assertEquals(1, unlockedA.completedLinkedTasksCount)
         assertEquals(1, unlockedB.completedLinkedTasksCount)
-        assertEquals(EnforcementAction.ALLOW, unlockedA.finalAction)
-        assertEquals(EnforcementAction.ALLOW, unlockedB.finalAction)
+        // SSOT LOCK RULE: completed tasks do NOT unlock the app while requirements remain active in current cycle
+        assertEquals(EnforcementAction.LOCK, unlockedA.finalAction)
+        assertEquals(EnforcementAction.LOCK, unlockedB.finalAction)
+        // Both apps qualify for deletion: N=1, K=1 -> canDelete = true
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
     }
 
     // =========================================================================
@@ -442,8 +453,10 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.setTaskCompletion(t1, cycleDate, true)
 
         val result = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.ALLOW, result.finalAction)
+        // Still LOCK because requirement remains active in current cycle
+        assertEquals(EnforcementAction.LOCK, result.finalAction)
         assertEquals(1, result.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
     }
 
     @Test
@@ -456,7 +469,9 @@ class CoreEnforcementIntegrationAuditTest {
         // Cycle 1: 2026-09-07 10:00 -> Completed
         val day1 = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, day1, true)
-        assertEquals(EnforcementAction.ALLOW, adapter.evaluate(pkg).finalAction)
+        // App is still LOCK (completed task still requires app in cycle 1)
+        assertEquals(EnforcementAction.LOCK, adapter.evaluate(pkg).finalAction)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
 
         // Advance to Cycle 2: 2026-09-08 04:00:01
         val post0400Time = LocalDateTime.of(2026, 9, 8, 4, 0, 1).toInstant(ZoneOffset.UTC).toEpochMilli()
@@ -468,7 +483,7 @@ class CoreEnforcementIntegrationAuditTest {
         val resultNewDay = adapter.evaluate(pkg)
         assertEquals(0, resultNewDay.completedLinkedTasksCount)
         assertEquals(EnforcementAction.LOCK, resultNewDay.finalAction)
-        assertEquals(BusinessUnlockDecision.INSUFFICIENT_COMPLETION, resultNewDay.businessUnlockDecision)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(1, 0))
     }
 
     @Test
@@ -482,7 +497,9 @@ class CoreEnforcementIntegrationAuditTest {
         val day1 = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, day1, true)
         adapter.recomputeSnapshot()
-        assertEquals(EnforcementAction.ALLOW, adapter.evaluateSync(pkg).finalAction)
+        // Still LOCK while requirement exists in cycle 1
+        assertEquals(EnforcementAction.LOCK, adapter.evaluateSync(pkg).finalAction)
+        assertEquals(1, adapter.evaluateSync(pkg).completedLinkedTasksCount)
 
         // Advance past 04:00
         val post0400Time = LocalDateTime.of(2026, 9, 8, 4, 0, 5).toInstant(ZoneOffset.UTC).toEpochMilli()
@@ -520,17 +537,27 @@ class CoreEnforcementIntegrationAuditTest {
         coreRepository.linkTaskToApp(t1, pkg)
         coreRepository.linkTaskToApp(t2, pkg)
 
-        // N=2, required=1 per MASTER SSOT. 0 completed => LOCK
+        // N=2, requiredForDeletion=1 per MASTER SSOT. 0 completed => LOCK
         val eval0 = adapter.evaluate(pkg)
         assertEquals(EnforcementAction.LOCK, eval0.finalAction)
         assertEquals(1, eval0.requiredTasksCount)
+        assertFalse(CanonicalAppDeletionPolicy.canDelete(2, 0))
 
         val today = businessDayProvider.getBusinessDate(clock.wallTimeMillis(), testZone).toString()
         coreRepository.setTaskCompletion(t1, today, true)
-        // 1 completed >= 1 (Required=1) => ALLOW (SSOT N=2 formula)
+        // 1 completed out of 2:
+        // Lock Policy: still 2 linked active tasks in cycle => LOCK
+        // Deletion Policy: 1 >= RequiredForDeletion(2) (1 >= 1) => canDelete is true!
         val eval1 = adapter.evaluate(pkg)
-        assertEquals(EnforcementAction.ALLOW, eval1.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, eval1.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, eval1.finalAction)
+        assertEquals(1, eval1.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(2, 1))
+
+        // Unlink both tasks => app becomes UNLOCKED
+        coreRepository.unlinkTaskFromApp(t1, pkg)
+        coreRepository.unlinkTaskFromApp(t2, pkg)
+        val evalUnlinked = adapter.evaluate(pkg)
+        assertEquals(EnforcementAction.ALLOW, evalUnlinked.finalAction)
     }
 
     @Test
@@ -595,10 +622,11 @@ class CoreEnforcementIntegrationAuditTest {
         // Adapter recomputes snapshot
         adapter.recomputeSnapshot()
 
-        // Immediate evaluateSync sees updated status
+        // Immediate evaluateSync sees updated status: still LOCK because requirement remains active
         val syncResult = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, syncResult.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, syncResult.businessUnlockDecision)
+        assertEquals(EnforcementAction.LOCK, syncResult.finalAction)
+        assertEquals(1, syncResult.completedLinkedTasksCount)
+        assertTrue(CanonicalAppDeletionPolicy.canDelete(1, 1))
     }
 
     @Test

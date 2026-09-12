@@ -302,12 +302,15 @@ class CanonicalCycleRuntimeTest {
         val timeOld = ZonedDateTime.of(2026, 9, 11, 20, 0, 0, 0, hcmZone).toInstant()
         taskRepo.completeTask("task_rec", cycleOld, timeOld)
 
-        // Tại chu kỳ cũ: K=1, Required=1 -> UNLOCKED
+        // Tại chu kỳ cũ: K=1, RequiredForDeletion=1 -> App vẫn LOCKED (1 task yêu cầu vẫn còn), canDelete = true
         cycleRepo.overrideCycleId = cycleOld
         val evalOld = lockEvaluator.evaluateApp(pkg, timeOld)
-        assertEquals(CanonicalLockDecision.UNLOCKED, evalOld.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, evalOld.decision)
+        assertEquals(1, evalOld.completedLinkedRewardTasks)
+        assertEquals(1, evalOld.requiredCompletions)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(1, 1))
 
-        // Tại chu kỳ mới (sau 04:00 ngày 12/09): K=0, Required=1 -> LOCKED
+        // Tại chu kỳ mới (sau 04:00 ngày 12/09): K=0, RequiredForDeletion=1 -> LOCKED, canDelete = false
         val cycleNew = CanonicalCycleId("2026-09-12")
         val timeNew = ZonedDateTime.of(2026, 9, 12, 4, 15, 0, 0, hcmZone).toInstant()
         cycleRepo.overrideCycleId = cycleNew
@@ -315,6 +318,7 @@ class CanonicalCycleRuntimeTest {
         assertEquals(CanonicalLockDecision.LOCKED, evalNew.decision)
         assertEquals(0, evalNew.completedLinkedRewardTasks)
         assertEquals(1, evalNew.requiredCompletions)
+        assertFalse(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(1, 0))
     }
 
     // -------------------------------------------------------------------------
@@ -338,7 +342,7 @@ class CanonicalCycleRuntimeTest {
     }
 
     // -------------------------------------------------------------------------
-    // CYC-A13: N=2 -> Required=1
+    // CYC-A13: N=2 -> RequiredForDeletion=1
     // -------------------------------------------------------------------------
     @Test
     fun test_CYC_A13_N2_Required1_across_boundary() = runBlocking {
@@ -357,12 +361,23 @@ class CanonicalCycleRuntimeTest {
         val evalK0 = lockEvaluator.evaluateApp(pkg, timeNew)
         assertEquals(CanonicalLockDecision.LOCKED, evalK0.decision)
         assertEquals(1, evalK0.requiredCompletions)
+        assertFalse(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 0))
 
-        // Hoàn thành 1 task (K=1 >= Required=1) -> UNLOCKED
+        // Hoàn thành 1 task (K=1 out of 2):
+        // Lock Policy: vẫn LOCKED vì 2 task yêu cầu vẫn còn hiệu lực
+        // Deletion Policy: K=1 >= RequiredForDeletion(2)=1 -> canDelete = true
         taskRepo.completeTask("t1", cycleNew, timeNew)
         val evalK1 = lockEvaluator.evaluateApp(pkg, timeNew)
-        assertEquals(CanonicalLockDecision.UNLOCKED, evalK1.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, evalK1.decision)
         assertEquals(1, evalK1.completedLinkedRewardTasks)
+        assertEquals(1, evalK1.requiredCompletions)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 1))
+
+        // Gỡ liên kết cả 2 task -> UNLOCKED
+        taskRepo.unlinkTaskFromApp("t1", pkg)
+        taskRepo.unlinkTaskFromApp("t2", pkg)
+        val evalUnlinked = lockEvaluator.evaluateApp(pkg, timeNew)
+        assertEquals(CanonicalLockDecision.UNLOCKED, evalUnlinked.decision)
     }
 
     // -------------------------------------------------------------------------

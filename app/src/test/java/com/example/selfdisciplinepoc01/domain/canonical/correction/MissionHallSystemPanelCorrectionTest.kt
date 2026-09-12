@@ -206,7 +206,8 @@ class MissionHallSystemPanelCorrectionTest {
         val result = completeTaskUseCase(task.id, cycle.cycleId)
 
         assertTrue("CompleteTaskUseCase phải thẩm định lại targetPackage", result.containsKey(targetPackage))
-        assertFalse("App phải được UNLOCKED sau thẩm định", result[targetPackage]!!.isLocked)
+        // SSOT LOCK RULE: completed task still requires app while link exists in cycle -> LOCKED
+        assertTrue("App vẫn LOCKED sau khi hoàn thành task vì requirement vẫn còn", result[targetPackage]!!.isLocked)
 
         // Kiểm tra TaskCycleState đã chuyển COMPLETED
         val cycleState = taskRepository.getCycleState(task.id, cycle.cycleId)
@@ -216,10 +217,17 @@ class MissionHallSystemPanelCorrectionTest {
 
         // Thẩm định lại bằng CanonicalLockEvaluator
         val postEval = lockEvaluator.evaluateApp(targetPackage)
-        assertFalse("App phải được UNLOCKED sau khi hoàn thành đủ số nhiệm vụ", postEval.isLocked)
+        assertTrue("App vẫn LOCKED vì requirement vẫn còn hiệu lực trong cycle", postEval.isLocked)
         assertEquals(1, postEval.completedLinkedRewardTasks)
         assertEquals(1, postEval.requiredCompletions)
-        assertEquals(CanonicalLockDecision.UNLOCKED, postEval.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, postEval.decision)
+        // Deletion eligibility: N=1, K=1 -> canDelete = true
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(1, 1))
+
+        // Khi unlink task khỏi app -> app UNLOCKED
+        taskRepository.unlinkTaskFromApp(task.id, targetPackage)
+        val unlinkedEval = lockEvaluator.evaluateApp(targetPackage)
+        assertFalse("App UNLOCKED khi không còn task yêu cầu", unlinkedEval.isLocked)
     }
 
     /**

@@ -381,7 +381,10 @@ class VaultDomainTest {
 
     @Test
     fun test21_open01Protection_noUnlockFormulaCalculated() = runBlocking {
-        // No 2/3 calculation or unlock approval exists
+        // App in Vault with linked task is LOCKED -> isTaskBasedUnlockApproved is false
+        addVaultAppUseCase("com.android.chrome", "Google Chrome")
+        val taskId = repository.createTask("Task Chrome")
+        repository.linkTaskToApp(taskId, "com.android.chrome")
         val isApproved = enforcementAdapter.isTaskBasedUnlockApproved("com.android.chrome")
         assertFalse(isApproved)
     }

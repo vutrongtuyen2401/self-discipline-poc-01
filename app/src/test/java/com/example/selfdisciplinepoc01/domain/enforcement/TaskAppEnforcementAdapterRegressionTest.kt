@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.selfdisciplinepoc01.data.database.AppDatabase
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
 import com.example.selfdisciplinepoc01.data.repository.CoreDataRepositoryImpl
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy
 import com.example.selfdisciplinepoc01.policy.PolicyEngine
 import com.example.selfdisciplinepoc01.target.model.LockedApp
 import com.example.selfdisciplinepoc01.target.repository.TargetRepository
@@ -164,9 +165,9 @@ class TaskAppEnforcementAdapterRegressionTest {
     }
 
     /**
-     * Scenario 4: completed linked task causes ALLOW
-     * When the linked task is completed for the current business cycle,
-     * completed (1) >= required (1), OPEN-01 unlocks the app.
+     * Scenario 4: completed linked task still causes LOCK according to MASTER SSOT
+     * (App is locked iff at least one current-cycle task requires it; completed task still requires app).
+     * Deletion policy allows deletion, but lock policy keeps it locked.
      */
     @Test
     fun test04_completedLinkedTaskCausesAllow() = runBlocking {
@@ -178,16 +179,15 @@ class TaskAppEnforcementAdapterRegressionTest {
         adapter.recomputeSnapshot()
 
         val details = adapter.evaluateSync(pkg)
-        assertEquals(EnforcementAction.ALLOW, details.finalAction)
-        assertEquals(BusinessUnlockDecision.UNLOCKED, details.businessUnlockDecision)
-        assertEquals(EnforcementReason.ALLOWED_UNLOCKED_BY_TASKS, details.reason)
+        assertEquals("Có task yêu cầu -> VẪN LOCKED dù task đã hoàn thành", EnforcementAction.LOCK, details.finalAction)
         assertEquals(1, details.completedLinkedTasksCount)
         assertEquals(1, details.requiredTasksCount)
+        assertTrue("Đủ điều kiện xóa khỏi Vault", CanonicalAppDeletionPolicy.canDelete(1, 1))
     }
 
     /**
      * Scenario 5: removing linkage refreshes enforcement
-     * App was unlocked with 1 completed task.
+     * App was locked with 1 completed task.
      * When linkage is removed, app becomes N=0 in Vault -> SSOT: UNLOCKED (ALLOW).
      */
     @Test
@@ -199,8 +199,8 @@ class TaskAppEnforcementAdapterRegressionTest {
         coreRepository.setTaskCompletion(taskId, today, true)
         adapter.recomputeSnapshot()
 
-        // Verify initial state: ALLOW
-        assertEquals(EnforcementAction.ALLOW, adapter.evaluateSync(pkg).finalAction)
+        // Verify initial state: LOCK (vì vẫn còn task link yêu cầu app)
+        assertEquals(EnforcementAction.LOCK, adapter.evaluateSync(pkg).finalAction)
 
         // Remove linkage
         coreRepository.unlinkTaskFromApp(taskId, pkg)

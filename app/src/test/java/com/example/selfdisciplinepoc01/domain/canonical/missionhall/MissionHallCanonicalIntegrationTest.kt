@@ -196,17 +196,17 @@ class MissionHallCanonicalIntegrationTest {
         // Complete trước
         completeUseCase("task_04", currentCycle)
         var lockResult = lockEvaluator.evaluateApp(appPkg)
-        assertEquals(CanonicalLockDecision.UNLOCKED, lockResult.decision)
+        // SSOT LOCK RULE: completed task still requires app while link exists in cycle -> LOCKED
+        assertEquals(CanonicalLockDecision.LOCKED, lockResult.decision)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(1, 1))
 
-        // Undo
+        // Undo completion
         val undoResults = undoUseCase("task_04", currentCycle)
         val stateAfterUndo = taskRepository.getCycleState("task_04", currentCycle)
         assertEquals(TaskCycleStatus.PENDING, stateAfterUndo?.status)
 
-        // Lock recomputed -> App bị khóa lại vì N=1, required=1, completed=0
         lockResult = lockEvaluator.evaluateApp(appPkg)
         assertEquals(CanonicalLockDecision.LOCKED, lockResult.decision)
-        assertEquals(1, lockResult.totalLinkedRewardTasks)
         assertEquals(0, lockResult.completedLinkedRewardTasks)
         assertEquals(CanonicalLockDecision.LOCKED, undoResults[appPkg]?.decision)
     }
@@ -371,11 +371,14 @@ class MissionHallCanonicalIntegrationTest {
         assertEquals(1, eval.completedLinkedRewardTasks)
         assertEquals(2, eval.requiredCompletions)
 
-        // Hoàn thành thêm task 2 (K=2 >= Required(3)=2) => UNLOCKED
+        // Hoàn thành thêm task 2 (K=2 >= RequiredForDeletion(3)=2):
+        // Lock Policy: vẫn LOCKED vì cả 3 tasks vẫn còn liên kết trong chu kỳ hiện tại
+        // Deletion Policy: K=2 >= RequiredForDeletion(3)=2 -> canDelete = true
         taskRepository.completeTask("t2", cycle)
         eval = lockEvaluator.evaluateApp(appPkg)
-        assertEquals(CanonicalLockDecision.UNLOCKED, eval.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, eval.decision)
         assertEquals(2, eval.completedLinkedRewardTasks)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(3, 2))
     }
 
     /**
@@ -395,7 +398,7 @@ class MissionHallCanonicalIntegrationTest {
 
     /**
      * MB-A11: N=2
-     * - Required(2) = 1 (Đặc xá khởi đầu theo MASTER SSOT)
+     * - RequiredForDeletion(2) = 1 (Đặc xá khởi đầu theo MASTER SSOT)
      */
     @Test
     fun `MB-A11 N=2 - Required(2) = 1 dac xa khoi dau`() = runBlocking {
@@ -415,13 +418,23 @@ class MissionHallCanonicalIntegrationTest {
         var eval = lockEvaluator.evaluateApp(appPkg)
         assertEquals(CanonicalLockDecision.LOCKED, eval.decision)
         assertEquals(2, eval.totalLinkedRewardTasks)
-        assertEquals(1, eval.requiredCompletions) // Required(2) = 1!
+        assertEquals(1, eval.requiredCompletions) // RequiredForDeletion(2) = 1!
+        assertFalse(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 0))
 
-        // Xong 1 task (K=1 >= 1) => UNLOCKED ngay!
+        // Xong 1 task (K=1 out of 2):
+        // Lock Policy: vẫn LOCKED vì 2 tasks yêu cầu vẫn còn hiệu lực
+        // Deletion Policy: K=1 >= RequiredForDeletion(2)=1 -> canDelete = true
         taskRepository.completeTask("t_d1", cycle)
         eval = lockEvaluator.evaluateApp(appPkg)
-        assertEquals(CanonicalLockDecision.UNLOCKED, eval.decision)
+        assertEquals(CanonicalLockDecision.LOCKED, eval.decision)
         assertEquals(1, eval.completedLinkedRewardTasks)
+        assertTrue(com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalAppDeletionPolicy.canDelete(2, 1))
+
+        // Khi gỡ liên kết cả 2 task -> UNLOCKED
+        taskRepository.unlinkTaskFromApp("t_d1", appPkg)
+        taskRepository.unlinkTaskFromApp("t_d2", appPkg)
+        eval = lockEvaluator.evaluateApp(appPkg)
+        assertEquals(CanonicalLockDecision.UNLOCKED, eval.decision)
     }
 
     /**

@@ -329,7 +329,7 @@ class TaskAppEnforcementAdapter(
 
     suspend fun isTaskBasedUnlockApproved(packageName: String): Boolean {
         val details = evaluate(packageName)
-        return details.businessUnlockDecision == BusinessUnlockDecision.UNLOCKED
+        return details.finalAction == EnforcementAction.ALLOW
     }
 
     /**
