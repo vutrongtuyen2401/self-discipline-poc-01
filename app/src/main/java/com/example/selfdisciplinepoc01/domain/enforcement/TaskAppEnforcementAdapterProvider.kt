@@ -36,6 +36,7 @@ object TaskAppEnforcementAdapterProvider {
                 val usageTracker = UsageTrackerProvider.getTracker(appContext)
                 val policyEngine = PolicyEngine(targetRepo, usageTracker)
                 val businessDayProvider = BusinessDayProviderHolder.instance
+                val database = com.example.selfdisciplinepoc01.data.database.AppDatabase.getInstance(appContext)
 
                 TaskAppEnforcementAdapter(
                     canonicalVaultRepository = vaultRepo,
@@ -44,11 +45,17 @@ object TaskAppEnforcementAdapterProvider {
                     canonicalLockEvaluator = lockEvaluator,
                     coreDataRepository = coreDataRepo,
                     policyEngine = policyEngine,
-                    businessDayProvider = businessDayProvider
+                    businessDayProvider = businessDayProvider,
+                    database = database
                 ).also { instance = it }
             }
         }
     }
+
+    /**
+     * Lấy instance hiện tại nếu đã được khởi tạo (không tạo mới nếu chưa có Context).
+     */
+    fun peekAdapter(): TaskAppEnforcementAdapter? = instance
 
     /**
      * Cung cấp instance kiểm thử phục vụ unit test hoặc reset.

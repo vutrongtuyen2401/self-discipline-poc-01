@@ -1,6 +1,7 @@
 package com.example.selfdisciplinepoc01
 
 import android.os.Bundle
+import androidx.room.withTransaction
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+        handleCanonicalTestSeams(intent)
     }
 
     private fun handleIntent(intent: android.content.Intent?) {
@@ -113,191 +115,7 @@ class MainActivity : ComponentActivity() {
             com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.scheduleTestAlarm(applicationContext, testAlarmSec.toLong())
         }
 
-        val seedLockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_LOCK_APP")
-        val seedUnlockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_UNLOCK_APP")
-        val clearCanonicalData = intent?.getBooleanExtra("EXTRA_CANONICAL_CLEAR_DATA", false) ?: false
-        val evalPkg = intent?.getStringExtra("EXTRA_EVALUATE_CANONICAL")
-
-        // Phase 2B-B Specific Test Seams
-        val vaultAddPkg = intent?.getStringExtra("EXTRA_CANONICAL_VAULT_ADD_PKG")
-        val vaultRemovePkg = intent?.getStringExtra("EXTRA_CANONICAL_VAULT_REMOVE_PKG")
-        val linkTaskApp = intent?.getStringExtra("EXTRA_CANONICAL_LINK_TASK_APP") // format: "taskId|packageName"
-        val unlinkTaskApp = intent?.getStringExtra("EXTRA_CANONICAL_UNLINK_TASK_APP") // format: "taskId|packageName"
-        val queryVaultApp = intent?.getStringExtra("EXTRA_CANONICAL_QUERY_VAULT_APP")
-        val addVoucherPkg = intent?.getStringExtra("EXTRA_CANONICAL_ADD_VOUCHER_PKG")
-
-        // Phase 2C Specific Test Seams
-        val seedCycleCompletion = intent?.getStringExtra("EXTRA_CANONICAL_SEED_CYCLE_COMPLETION") // format: "taskId|cycleId"
-        val triggerBoundary = intent?.getBooleanExtra("EXTRA_CANONICAL_TRIGGER_BOUNDARY", false) ?: false
-        val triggerReconcile = intent?.getBooleanExtra("EXTRA_CANONICAL_RECONCILE", false) ?: false
-        val launchLockScreenPkg = intent?.getStringExtra("EXTRA_CANONICAL_LAUNCH_LOCK_SCREEN")
-
-        if (launchLockScreenPkg != null) {
-            val lockIntent = android.content.Intent(this, LockScreenActivity::class.java).apply {
-                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, launchLockScreenPkg)
-                putExtra(LockScreenActivity.EXTRA_SESSION_ID, System.currentTimeMillis())
-            }
-            startActivity(lockIntent)
-            android.util.Log.i("CanonicalTestSeam", "[LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for $launchLockScreenPkg")
-        }
-
-        if (triggerBoundary) {
-            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.onCycleBoundaryReached(applicationContext)
-            android.util.Log.i("CanonicalTestSeam", "[CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from intent")
-        }
-
-        if (triggerReconcile) {
-            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
-            android.util.Log.i("CanonicalTestSeam", "[CYCLE_RECONCILE_TRIGGERED] reconcileCycleOnStartup executed manually from intent")
-        }
-
-        if (seedLockPkg != null || seedUnlockPkg != null || clearCanonicalData || evalPkg != null ||
-            vaultAddPkg != null || vaultRemovePkg != null || linkTaskApp != null || unlinkTaskApp != null ||
-            queryVaultApp != null || addVoucherPkg != null || seedCycleCompletion != null) {
-            lifecycleScope.launch {
-                val vaultRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getVaultRepository(applicationContext)
-                val taskRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getTaskRepository(applicationContext)
-                val lockEvaluator = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getLockEvaluator(applicationContext)
-                val adapter = com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(applicationContext)
-
-                if (seedCycleCompletion != null) {
-                    val parts = seedCycleCompletion.split("|")
-                    if (parts.size == 2) {
-                        val taskId = parts[0].trim()
-                        val cycleIdStr = parts[1].trim()
-                        val now = java.time.Instant.now()
-                        taskRepo.completeTask(taskId, com.example.selfdisciplinepoc01.domain.canonical.cycle.CanonicalCycleId(cycleIdStr), now)
-                        adapter.recomputeSnapshot()
-                        android.util.Log.i("CanonicalTestSeam", "[SEED_CYCLE_COMPLETION] Đã đánh dấu hoàn thành Task '$taskId' trong chu kỳ '$cycleIdStr'")
-                    }
-                }
-
-                if (vaultAddPkg != null) {
-                    val now = java.time.Instant.now()
-                    vaultRepo.addVaultApp(
-                        com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp(
-                            packageName = vaultAddPkg,
-                            displayName = vaultAddPkg,
-                            addedAt = now
-                        )
-                    )
-                    adapter.recomputeSnapshot()
-                    val eval = lockEvaluator.evaluateApp(vaultAddPkg, now)
-                    android.util.Log.i("CanonicalTestSeam", "[VAULT_ADD] Đã thêm '$vaultAddPkg' vào Vault. Decision=${eval.decision}, totalLinks=${eval.totalLinkedRewardTasks}, required=${eval.requiredCompletions}")
-                }
-
-                if (vaultRemovePkg != null) {
-                    vaultRepo.removeVaultApp(vaultRemovePkg)
-                    adapter.recomputeSnapshot()
-                    val eval = lockEvaluator.evaluateApp(vaultRemovePkg)
-                    android.util.Log.i("CanonicalTestSeam", "[VAULT_REMOVE] Đã gỡ '$vaultRemovePkg' khỏi Vault. Decision=${eval.decision}")
-                }
-
-                if (linkTaskApp != null) {
-                    val parts = linkTaskApp.split("|")
-                    if (parts.size == 2) {
-                        val taskId = parts[0].trim()
-                        val pkg = parts[1].trim()
-                        // Ensure task exists
-                        if (taskRepo.getTask(taskId) == null) {
-                            taskRepo.saveTask(
-                                com.example.selfdisciplinepoc01.domain.canonical.task.CanonicalTask(
-                                    id = taskId,
-                                    title = "Task $taskId",
-                                    createdAt = java.time.Instant.now()
-                                )
-                            )
-                        }
-                        taskRepo.linkTaskToApp(taskId, pkg)
-                        adapter.recomputeSnapshot()
-                        val links = taskRepo.getTasksLinkedToApp(pkg)
-                        android.util.Log.i("CanonicalTestSeam", "[LINK_TASK_APP] Đã liên kết Task '$taskId' với '$pkg'. Tổng số links của app: ${links.size}")
-                    }
-                }
-
-                if (unlinkTaskApp != null) {
-                    val parts = unlinkTaskApp.split("|")
-                    if (parts.size == 2) {
-                        val taskId = parts[0].trim()
-                        val pkg = parts[1].trim()
-                        taskRepo.unlinkTaskFromApp(taskId, pkg)
-                        adapter.recomputeSnapshot()
-                        val links = taskRepo.getTasksLinkedToApp(pkg)
-                        android.util.Log.i("CanonicalTestSeam", "[UNLINK_TASK_APP] Đã hủy liên kết Task '$taskId' khỏi '$pkg'. Còn lại links: ${links.size}")
-                    }
-                }
-
-                if (addVoucherPkg != null) {
-                    val now = java.time.Instant.now()
-                    val voucher = com.example.selfdisciplinepoc01.domain.canonical.vault.VoucherEffect(
-                        voucherId = "test_voucher_${System.currentTimeMillis()}",
-                        voucherName = "Lệnh Bài Miễn Phong Ấn",
-                        targetPackageName = if (addVoucherPkg == "*") null else addVoucherPkg,
-                        effectiveFrom = now.minusSeconds(60),
-                        effectiveUntil = now.plusSeconds(3600)
-                    )
-                    (vaultRepo as? com.example.selfdisciplinepoc01.data.canonical.repository.CanonicalVaultRepositoryImpl)?.saveVoucher(voucher)
-                    adapter.recomputeSnapshot()
-                    android.util.Log.i("CanonicalTestSeam", "[VOUCHER_ADD] Đã thêm Voucher hiệu lực cho '$addVoucherPkg'")
-                }
-
-                if (queryVaultApp != null) {
-                    adapter.recomputeSnapshot()
-                    val app = vaultRepo.getVaultApp(queryVaultApp)
-                    val links = taskRepo.getTasksLinkedToApp(queryVaultApp)
-                    val eval = lockEvaluator.evaluateApp(queryVaultApp)
-                    val syncEval = adapter.evaluateSync(queryVaultApp)
-                    android.util.Log.i("CanonicalTestSeam", "[QUERY_VAULT_APP] App '$queryVaultApp': inVault=${app != null}, linksCount=${links.size}, evaluatorDecision=${eval.decision}, syncFinalAction=${syncEval.finalAction}, reason=${syncEval.reason}")
-                }
-
-                if (seedLockPkg != null) {
-                    val now = java.time.Instant.now()
-                    vaultRepo.addVaultApp(
-                        com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp(
-                            packageName = seedLockPkg,
-                            displayName = "Test Vault App",
-                            addedAt = now
-                        )
-                    )
-                    val taskId = "test_task_${seedLockPkg.replace('.', '_')}"
-                    val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
-                    taskRepo.saveTask(
-                        com.example.selfdisciplinepoc01.domain.canonical.task.CanonicalTask(
-                            id = taskId,
-                            title = "Nhiệm vụ phong ấn test cho $seedLockPkg",
-                            createdAt = now
-                        )
-                    )
-                    taskRepo.linkTaskToApp(taskId, seedLockPkg)
-                    taskRepo.undoTaskCompletion(taskId, cycleId)
-                    adapter.recomputeSnapshot()
-                    val eval = adapter.evaluateSync(seedLockPkg)
-                    android.util.Log.i("CanonicalTestSeam", "[SEED_LOCKED] Đã seed Vault App '$seedLockPkg' có 1 task chưa hoàn thành (N=1, K=0). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
-                }
-
-                if (seedUnlockPkg != null) {
-                    val now = java.time.Instant.now()
-                    val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
-                    val taskId = "test_task_${seedUnlockPkg.replace('.', '_')}"
-                    taskRepo.completeTask(taskId, cycleId, now)
-                    adapter.recomputeSnapshot()
-                    val eval = adapter.evaluateSync(seedUnlockPkg)
-                    android.util.Log.i("CanonicalTestSeam", "[SEED_UNLOCKED] Đã hoàn thành task cho '$seedUnlockPkg' trong chu kỳ $cycleId (N=1, K=1). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
-                }
-
-                if (evalPkg != null) {
-                    adapter.recomputeSnapshot()
-                    val eval = adapter.evaluateSync(evalPkg)
-                    android.util.Log.i("CanonicalTestSeam", "[EVALUATE] Package '$evalPkg': finalAction=${eval.finalAction}, isVaultApp=${eval.isVaultApp}, reason=${eval.reason}")
-                }
-
-                if (clearCanonicalData) {
-                    adapter.refreshSnapshot()
-                    android.util.Log.i("CanonicalTestSeam", "[CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.")
-                }
-            }
-        }
+        handleCanonicalTestSeams(intent)
 
         if (addPkg != null || removePkg != null || togglePkg != null || policyPkg != null) {
             val repo = TargetRepositoryProvider.getRepository(applicationContext)
@@ -325,6 +143,262 @@ class MainActivity : ComponentActivity() {
                     AppDetectorAccessibilityService.onPolicyUpdated(policyPkg)
                 }
                 finish()
+            }
+        }
+    }
+
+    private fun handleCanonicalTestSeams(intent: android.content.Intent?) {
+        val launchLockScreenPkg = intent?.getStringExtra("EXTRA_CANONICAL_LAUNCH_LOCK_SCREEN")
+        val triggerBoundary = intent?.getBooleanExtra("EXTRA_CANONICAL_TRIGGER_BOUNDARY", false) ?: false
+        val triggerReconcile = intent?.getBooleanExtra("EXTRA_CANONICAL_RECONCILE", false) ?: false
+
+        val clearCanonicalData = intent?.getBooleanExtra("EXTRA_CANONICAL_CLEAR_DATA", false) ?: false
+        val vaultAddPkg = intent?.getStringExtra("EXTRA_CANONICAL_VAULT_ADD_PKG")
+        val vaultRemovePkg = intent?.getStringExtra("EXTRA_CANONICAL_VAULT_REMOVE_PKG")
+        val createTaskReward = intent?.getStringExtra("EXTRA_CANONICAL_CREATE_TASK_WITH_REWARD") // format: "taskId|title|pkg|timing"
+        val updateReward = intent?.getStringExtra("EXTRA_CANONICAL_UPDATE_REWARD_TIMING") // format: "taskId|pkg|timing"
+        val linkTaskApp = intent?.getStringExtra("EXTRA_CANONICAL_LINK_TASK_APP") // format: "taskId|packageName"
+        val unlinkTaskApp = intent?.getStringExtra("EXTRA_CANONICAL_UNLINK_TASK_APP") // format: "taskId|packageName"
+        val deleteTaskPkg = intent?.getStringExtra("EXTRA_CANONICAL_DELETE_TASK")
+        val queryVaultApp = intent?.getStringExtra("EXTRA_CANONICAL_QUERY_VAULT_APP")
+        val addVoucherPkg = intent?.getStringExtra("EXTRA_CANONICAL_ADD_VOUCHER_PKG")
+        val seedCycleCompletion = intent?.getStringExtra("EXTRA_CANONICAL_SEED_CYCLE_COMPLETION") // format: "taskId|cycleId"
+        val seedLockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_LOCK_APP")
+        val seedUnlockPkg = intent?.getStringExtra("EXTRA_CANONICAL_SEED_UNLOCK_APP")
+        val evalPkg = intent?.getStringExtra("EXTRA_EVALUATE_CANONICAL")
+
+        if (launchLockScreenPkg != null) {
+            val lockIntent = android.content.Intent(this, LockScreenActivity::class.java).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra(LockScreenActivity.EXTRA_TARGET_PACKAGE, launchLockScreenPkg)
+                putExtra(LockScreenActivity.EXTRA_SESSION_ID, System.currentTimeMillis())
+            }
+            startActivity(lockIntent)
+            android.util.Log.i("CanonicalTestSeam", "[LAUNCH_LOCK_SCREEN] Launched LockScreenActivity for $launchLockScreenPkg")
+        }
+
+        if (triggerBoundary) {
+            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.onCycleBoundaryReached(applicationContext)
+            android.util.Log.i("CanonicalTestSeam", "[CYCLE_BOUNDARY_TRIGGERED] onCycleBoundaryReached executed manually from intent")
+        }
+
+        if (triggerReconcile) {
+            com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
+            android.util.Log.i("CanonicalTestSeam", "[CYCLE_RECONCILE_TRIGGERED] reconcileCycleOnStartup executed manually from intent")
+        }
+
+        lifecycleScope.launch {
+            val vaultRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getVaultRepository(applicationContext)
+            val taskRepo = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getTaskRepository(applicationContext)
+            val lockEvaluator = com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider.getLockEvaluator(applicationContext)
+            val adapter = com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(applicationContext)
+
+            val addVaultUseCase = com.example.selfdisciplinepoc01.domain.canonical.usecase.AddVaultAppUseCase(vaultRepo, lockEvaluator)
+            val removeVaultUseCase = com.example.selfdisciplinepoc01.domain.canonical.usecase.RemoveVaultAppUseCase(vaultRepo, taskRepo)
+            val createTaskUseCase = com.example.selfdisciplinepoc01.domain.canonical.usecase.CreateTaskUseCase(taskRepo, lockEvaluator)
+            val updateRewardUseCase = com.example.selfdisciplinepoc01.domain.canonical.usecase.UpdateTaskRewardLinkageUseCase(taskRepo, lockEvaluator)
+            val deleteTaskUseCase = com.example.selfdisciplinepoc01.domain.canonical.usecase.DeleteTaskUseCase(taskRepo, lockEvaluator)
+
+            if (clearCanonicalData) {
+                val db = com.example.selfdisciplinepoc01.data.database.AppDatabase.getInstance(applicationContext)
+                db.withTransaction {
+                    val allApps = db.canonicalVaultDao().getAllApps()
+                    for (app in allApps) {
+                        db.canonicalVaultDao().deleteApp(app.packageName)
+                        db.taskRewardLinkDao().deleteByApp(app.packageName)
+                    }
+                    val allTasks = db.canonicalTaskDao().getAllActiveTasks()
+                    for (task in allTasks) {
+                        db.canonicalTaskDao().archiveTask(task.id)
+                        db.taskRewardLinkDao().deleteByTask(task.id)
+                    }
+                }
+                adapter.recomputeSnapshot()
+                android.util.Log.i("CanonicalTestSeam", "[CLEAR] Đã refresh snapshot và dọn dẹp dữ liệu canonical test.")
+            }
+
+            if (vaultAddPkg != null) {
+                val now = java.time.Instant.now()
+                val eval = addVaultUseCase(vaultAddPkg, vaultAddPkg, now)
+                adapter.recomputeSnapshot()
+                android.util.Log.i("CanonicalTestSeam", "[VAULT_ADD] Đã thêm '$vaultAddPkg' vào Vault qua UseCase. Decision=${eval.decision}, totalLinks=${eval.totalLinkedRewardTasks}, required=${eval.requiredCompletions}")
+            }
+
+            if (vaultRemovePkg != null) {
+                removeVaultUseCase(vaultRemovePkg)
+                adapter.recomputeSnapshot()
+                val eval = lockEvaluator.evaluateApp(vaultRemovePkg)
+                android.util.Log.i("CanonicalTestSeam", "[VAULT_REMOVE] Đã gỡ '$vaultRemovePkg' khỏi Vault qua UseCase. Decision=${eval.decision}")
+            }
+
+            if (createTaskReward != null) {
+                val parts = createTaskReward.split("|")
+                if (parts.size >= 4) {
+                    val taskId = parts[0].trim()
+                    val title = parts[1].trim()
+                    val pkg = parts[2].trim()
+                    val timingStr = parts[3].trim().lowercase()
+                    val timing = if (timingStr == "next_cycle") {
+                        com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
+                    } else {
+                        com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                    }
+                    val res = createTaskUseCase.execute(
+                        id = taskId,
+                        title = title,
+                        linkedAppPackageNames = listOf(pkg),
+                        timing = timing
+                    )
+                    adapter.recomputeSnapshot()
+                    val eval = lockEvaluator.evaluateApp(pkg)
+                    android.util.Log.i("CanonicalTestSeam", "[CREATE_TASK_REWARD] Task '$taskId' link '$pkg' timing=$timing. App eval=${eval.decision}, req=${eval.requiredCompletions}, comp=${eval.completedLinkedRewardTasks}")
+                }
+            }
+
+            if (updateReward != null) {
+                val parts = updateReward.split("|")
+                if (parts.size >= 3) {
+                    val taskId = parts[0].trim()
+                    val pkg = parts[1].trim()
+                    val timingStr = parts[2].trim().lowercase()
+                    val timing = if (timingStr == "next_cycle") {
+                        com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
+                    } else {
+                        com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                    }
+                    val res = updateRewardUseCase.execute(
+                        taskId = taskId,
+                        selectedPackageNames = if (pkg.isEmpty()) emptyList() else listOf(pkg),
+                        timing = timing
+                    )
+                    adapter.recomputeSnapshot()
+                    val eval = if (pkg.isNotEmpty()) lockEvaluator.evaluateApp(pkg) else null
+                    android.util.Log.i("CanonicalTestSeam", "[UPDATE_REWARD_TIMING] Task '$taskId' -> '$pkg' timing=$timing. App eval=${eval?.decision}")
+                }
+            }
+
+            if (linkTaskApp != null) {
+                val parts = linkTaskApp.split("|")
+                if (parts.size == 2) {
+                    val taskId = parts[0].trim()
+                    val pkg = parts[1].trim()
+                    // Ensure task exists
+                    if (taskRepo.getTask(taskId) == null) {
+                        createTaskUseCase.execute(
+                            id = taskId,
+                            title = "Task $taskId",
+                            linkedAppPackageNames = listOf(pkg),
+                            timing = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                        )
+                    } else {
+                        val currentLinks = taskRepo.getAppsLinkedToTask(taskId)
+                        val newLinks = (currentLinks + pkg).distinct()
+                        updateRewardUseCase.execute(
+                            taskId = taskId,
+                            selectedPackageNames = newLinks,
+                            timing = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                        )
+                    }
+                    adapter.recomputeSnapshot()
+                    val links = taskRepo.getTasksLinkedToApp(pkg)
+                    val eval = lockEvaluator.evaluateApp(pkg)
+                    val syncEval = adapter.evaluateSync(pkg)
+                    android.util.Log.i("CanonicalTestSeam", "[LINK_TASK_APP] Đã liên kết Task '$taskId' với '$pkg' (IMMEDIATE). Links=${links.size}, eval=${eval.decision}, syncAction=${syncEval.finalAction}")
+                }
+            }
+
+            if (unlinkTaskApp != null) {
+                val parts = unlinkTaskApp.split("|")
+                if (parts.size == 2) {
+                    val taskId = parts[0].trim()
+                    val pkg = parts[1].trim()
+                    val currentLinks = taskRepo.getAppsLinkedToTask(taskId)
+                    val newLinks = currentLinks.filter { it != pkg }
+                    updateRewardUseCase.execute(
+                        taskId = taskId,
+                        selectedPackageNames = newLinks,
+                        timing = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                    )
+                    adapter.recomputeSnapshot()
+                    val links = taskRepo.getTasksLinkedToApp(pkg)
+                    val eval = lockEvaluator.evaluateApp(pkg)
+                    val syncEval = adapter.evaluateSync(pkg)
+                    android.util.Log.i("CanonicalTestSeam", "[UNLINK_TASK_APP] Đã hủy liên kết Task '$taskId' khỏi '$pkg' (IMMEDIATE). Còn lại links: ${links.size}, eval=${eval.decision}, syncAction=${syncEval.finalAction}")
+                }
+            }
+
+            if (deleteTaskPkg != null) {
+                deleteTaskUseCase(deleteTaskPkg)
+                adapter.recomputeSnapshot()
+                android.util.Log.i("CanonicalTestSeam", "[DELETE_TASK] Đã xóa task '$deleteTaskPkg' qua DeleteTaskUseCase.")
+            }
+
+            if (seedCycleCompletion != null) {
+                val parts = seedCycleCompletion.split("|")
+                if (parts.size == 2) {
+                    val taskId = parts[0].trim()
+                    val cycleIdStr = parts[1].trim()
+                    val now = java.time.Instant.now()
+                    taskRepo.completeTask(taskId, com.example.selfdisciplinepoc01.domain.canonical.cycle.CanonicalCycleId(cycleIdStr), now)
+                    adapter.recomputeSnapshot()
+                    android.util.Log.i("CanonicalTestSeam", "[SEED_CYCLE_COMPLETION] Đã đánh dấu hoàn thành Task '$taskId' trong chu kỳ '$cycleIdStr'")
+                }
+            }
+
+            if (addVoucherPkg != null) {
+                val now = java.time.Instant.now()
+                val voucher = com.example.selfdisciplinepoc01.domain.canonical.vault.VoucherEffect(
+                    voucherId = "test_voucher_${System.currentTimeMillis()}",
+                    voucherName = "Lệnh Bài Miễn Phong Ấn",
+                    targetPackageName = if (addVoucherPkg == "*") null else addVoucherPkg,
+                    effectiveFrom = now.minusSeconds(60),
+                    effectiveUntil = now.plusSeconds(3600)
+                )
+                (vaultRepo as? com.example.selfdisciplinepoc01.data.canonical.repository.CanonicalVaultRepositoryImpl)?.saveVoucher(voucher)
+                adapter.recomputeSnapshot()
+                android.util.Log.i("CanonicalTestSeam", "[VOUCHER_ADD] Đã thêm Voucher hiệu lực cho '$addVoucherPkg'")
+            }
+
+            if (seedLockPkg != null) {
+                val now = java.time.Instant.now()
+                addVaultUseCase(seedLockPkg, "Test Vault App", now)
+                val taskId = "test_task_${seedLockPkg.replace('.', '_')}"
+                val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
+                createTaskUseCase.execute(
+                    id = taskId,
+                    title = "Nhiệm vụ phong ấn test cho $seedLockPkg",
+                    linkedAppPackageNames = listOf(seedLockPkg),
+                    timing = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                )
+                taskRepo.undoTaskCompletion(taskId, cycleId)
+                adapter.recomputeSnapshot()
+                val eval = adapter.evaluateSync(seedLockPkg)
+                android.util.Log.i("CanonicalTestSeam", "[SEED_LOCKED] Đã seed Vault App '$seedLockPkg' có 1 task chưa hoàn thành (N=1, K=0). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
+            }
+
+            if (seedUnlockPkg != null) {
+                val now = java.time.Instant.now()
+                val cycleId = com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleEngine.getCurrentCycleId(now, java.time.ZoneId.systemDefault())
+                val taskId = "test_task_${seedUnlockPkg.replace('.', '_')}"
+                taskRepo.completeTask(taskId, cycleId, now)
+                adapter.recomputeSnapshot()
+                val eval = adapter.evaluateSync(seedUnlockPkg)
+                android.util.Log.i("CanonicalTestSeam", "[SEED_UNLOCKED] Đã hoàn thành task cho '$seedUnlockPkg' trong chu kỳ $cycleId (N=1, K=1). Kết quả đánh giá: finalAction=${eval.finalAction}, reason=${eval.reason}")
+            }
+
+            if (evalPkg != null) {
+                adapter.recomputeSnapshot()
+                val eval = adapter.evaluateSync(evalPkg)
+                android.util.Log.i("CanonicalTestSeam", "[EVALUATE] Package '$evalPkg': finalAction=${eval.finalAction}, isVaultApp=${eval.isVaultApp}, reason=${eval.reason}")
+            }
+
+            if (queryVaultApp != null) {
+                adapter.recomputeSnapshot()
+                val app = vaultRepo.getVaultApp(queryVaultApp)
+                val links = taskRepo.getTasksLinkedToApp(queryVaultApp)
+                val eval = lockEvaluator.evaluateApp(queryVaultApp)
+                val syncEval = adapter.evaluateSync(queryVaultApp)
+                android.util.Log.i("CanonicalTestSeam", "[QUERY_VAULT_APP] App '$queryVaultApp': inVault=${app != null}, linksCount=${links.size}, evaluatorDecision=${eval.decision}, syncFinalAction=${syncEval.finalAction}, reason=${syncEval.reason}")
             }
         }
     }

@@ -173,7 +173,8 @@ class TaskAppEnforcementAdapter(
     private val businessDayProvider: BusinessDayProvider = BusinessDayProviderHolder.instance,
     private val clock: Clock = SystemClockImpl(),
     private val zoneIdProvider: () -> ZoneId = { ZoneId.systemDefault() },
-    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val database: com.example.selfdisciplinepoc01.data.database.AppDatabase? = null
 ) {
 
     /**
@@ -194,7 +195,8 @@ class TaskAppEnforcementAdapter(
         policyEngine = policyEngine,
         businessDayProvider = businessDayProvider,
         clock = clock,
-        zoneIdProvider = zoneIdProvider
+        zoneIdProvider = zoneIdProvider,
+        database = null
     )
 
     // Thread-safe atomic in-memory snapshot cache
@@ -209,6 +211,29 @@ class TaskAppEnforcementAdapter(
             try {
                 // Initial compute
                 recomputeSnapshot()
+
+                // Observe canonical room database tables directly via InvalidationTracker
+                database?.invalidationTracker?.addObserver(
+                    object : androidx.room.InvalidationTracker.Observer(
+                        arrayOf(
+                            "canonical_tasks",
+                            "canonical_vault_apps",
+                            "canonical_task_reward_links",
+                            "canonical_task_cycle_states",
+                            "canonical_vouchers"
+                        )
+                    ) {
+                        override fun onInvalidated(tables: Set<String>) {
+                            android.util.Log.d("TaskAppEnforcement", "Room InvalidationTracker detected changes in tables: $tables -> recomputing snapshot")
+                            coroutineScope.launch {
+                                try {
+                                    recomputeSnapshot()
+                                } catch (_: Exception) {
+                                }
+                            }
+                        }
+                    }
+                )
 
                 // Observe legacy repository changes if present
                 coreDataRepository?.let { repo ->

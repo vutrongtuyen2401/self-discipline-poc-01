@@ -11,32 +11,68 @@ import com.example.selfdisciplinepoc01.domain.canonical.vault.LockEvaluationResu
 import java.time.Instant
 
 /**
- * Use Case: Tạo nhiệm vụ mới trong Sảnh Nhiệm Vụ.
+ * Use Case: Tạo nhiệm vụ mới trong Sảnh Nhiệm Vụ (Mission Hall).
+ * Hỗ trợ tạo nguyên tử (Atomic Mutation) kèm liên kết phần thưởng
+ * và lựa chọn thời điểm hiệu lực (IMMEDIATE_CURRENT_CYCLE hoặc PENDING_NEXT_CYCLE) theo SSOT.
  */
 class CreateTaskUseCase(
-    private val taskRepository: CanonicalTaskRepository
+    private val taskRepository: CanonicalTaskRepository,
+    private val lockEvaluator: CanonicalLockEvaluator? = null
 ) {
-    suspend operator fun invoke(
-        id: String,
+    suspend fun execute(
+        id: String = java.util.UUID.randomUUID().toString(),
         title: String,
         description: String = "",
         orderIndex: Int = 0,
         hasReward: Boolean = true,
-        linkedAppPackageNames: List<String> = emptyList()
-    ): CanonicalTask {
+        linkedAppPackageNames: List<String> = emptyList(),
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE,
+        instant: Instant = Instant.now()
+    ): com.example.selfdisciplinepoc01.domain.canonical.task.TaskMutationResult {
         val task = CanonicalTask(
             id = id,
             title = title,
             description = description,
             orderIndex = orderIndex,
             hasReward = hasReward,
-            createdAt = Instant.now()
+            createdAt = instant
         )
-        taskRepository.saveTask(task)
-        for (pkg in linkedAppPackageNames) {
-            taskRepository.linkTaskToApp(id, pkg)
+        val affectedApps = taskRepository.createTaskAtomic(task, linkedAppPackageNames, timing)
+        val evaluationMap = mutableMapOf<String, LockEvaluationResult>()
+        if (lockEvaluator != null) {
+            for (pkg in affectedApps) {
+                evaluationMap[pkg] = lockEvaluator.evaluateApp(pkg, instant)
+            }
         }
-        return task
+        if (affectedApps.isNotEmpty()) {
+            CanonicalMutationSyncManager.notifyMutationCommitted(affectedApps)
+        }
+        val savedTask = taskRepository.getTask(id) ?: task
+        return com.example.selfdisciplinepoc01.domain.canonical.task.TaskMutationResult(
+            task = savedTask,
+            affectedAppsEvaluation = evaluationMap,
+            timing = timing
+        )
+    }
+
+    suspend operator fun invoke(
+        id: String = java.util.UUID.randomUUID().toString(),
+        title: String,
+        description: String = "",
+        orderIndex: Int = 0,
+        hasReward: Boolean = true,
+        linkedAppPackageNames: List<String> = emptyList(),
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+    ): CanonicalTask {
+        return execute(
+            id = id,
+            title = title,
+            description = description,
+            orderIndex = orderIndex,
+            hasReward = hasReward,
+            linkedAppPackageNames = linkedAppPackageNames,
+            timing = timing
+        ).task ?: CanonicalTask(id = id, title = title, description = description, orderIndex = orderIndex, hasReward = hasReward)
     }
 }
 
@@ -63,6 +99,9 @@ class CompleteTaskUseCase(
         for (pkg in linkedApps) {
             val result = lockEvaluator.evaluateApp(pkg, completedAt)
             evaluationResults[pkg] = result
+        }
+        if (linkedApps.isNotEmpty()) {
+            CanonicalMutationSyncManager.notifyMutationCommitted(linkedApps)
         }
         return evaluationResults
     }
@@ -92,6 +131,9 @@ class UndoTaskUseCase(
             val result = lockEvaluator.evaluateApp(pkg, undoInstant)
             evaluationResults[pkg] = result
         }
+        if (linkedApps.isNotEmpty()) {
+            CanonicalMutationSyncManager.notifyMutationCommitted(linkedApps)
+        }
         return evaluationResults
     }
 }
@@ -120,6 +162,9 @@ class DeleteTaskUseCase(
             val result = lockEvaluator.evaluateApp(pkg, instant)
             evaluationResults[pkg] = result
         }
+        if (affectedApps.isNotEmpty()) {
+            CanonicalMutationSyncManager.notifyMutationCommitted(affectedApps)
+        }
         return evaluationResults
     }
 }
@@ -146,6 +191,7 @@ class AddVaultAppUseCase(
             addedAt = addedAt
         )
         vaultRepository.addVaultApp(app)
+        CanonicalMutationSyncManager.notifyMutationCommitted(listOf(packageName))
         return lockEvaluator.evaluateApp(packageName, addedAt)
     }
 }
@@ -166,6 +212,7 @@ class RemoveVaultAppUseCase(
     suspend operator fun invoke(packageName: String) {
         taskRepository.removeAllLinksForApp(packageName)
         vaultRepository.removeVaultApp(packageName)
+        CanonicalMutationSyncManager.notifyMutationCommitted(listOf(packageName))
     }
 }
 
@@ -275,40 +322,56 @@ class GetMissionHallTasksCanonicalUseCase(
 
 /**
  * Use Case: Cập nhật liên kết phần thưởng của nhiệm vụ.
- * Hỗ trợ áp dụng ngay lập tức hoặc đặt chế độ Chờ chu kỳ tiếp theo (Pending Next Cycle).
+ * Hỗ trợ áp dụng ngay lập tức (IMMEDIATE_CURRENT_CYCLE) hoặc đặt chế độ Chờ chu kỳ tiếp theo (PENDING_NEXT_CYCLE)
+ * theo chuẩn SSOT với thao tác Atomic Mutation.
  */
 class UpdateTaskRewardLinkageUseCase(
     private val taskRepository: CanonicalTaskRepository,
     private val lockEvaluator: CanonicalLockEvaluator
 ) {
+    suspend fun execute(
+        taskId: String,
+        selectedPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming = com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE,
+        instant: Instant = Instant.now()
+    ): com.example.selfdisciplinepoc01.domain.canonical.task.TaskMutationResult {
+        val affectedApps = taskRepository.updateTaskRewardLinkageAtomic(taskId, selectedPackageNames, timing)
+        val results = mutableMapOf<String, LockEvaluationResult>()
+        for (pkg in affectedApps) {
+            results[pkg] = lockEvaluator.evaluateApp(pkg, instant)
+        }
+        if (affectedApps.isNotEmpty()) {
+            CanonicalMutationSyncManager.notifyMutationCommitted(affectedApps)
+        }
+        val task = taskRepository.getTask(taskId)
+        return com.example.selfdisciplinepoc01.domain.canonical.task.TaskMutationResult(
+            task = task,
+            affectedAppsEvaluation = results,
+            timing = timing
+        )
+    }
+
     suspend operator fun invoke(
         taskId: String,
         selectedPackageNames: List<String>,
         isPendingNextCycle: Boolean = false,
         instant: Instant = Instant.now()
     ): Map<String, LockEvaluationResult> {
-        if (isPendingNextCycle) {
-            taskRepository.setPendingNextCycleRewards(taskId, selectedPackageNames)
-            return emptyMap()
+        val timing = if (isPendingNextCycle) {
+            com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
         } else {
-            val oldApps = taskRepository.getAppsLinkedToTask(taskId)
-            for (pkg in oldApps) {
-                taskRepository.unlinkTaskFromApp(taskId, pkg)
-            }
-            for (pkg in selectedPackageNames) {
-                taskRepository.linkTaskToApp(taskId, pkg)
-            }
-            val task = taskRepository.getTask(taskId)
-            if (task != null) {
-                taskRepository.saveTask(task.copy(hasReward = selectedPackageNames.isNotEmpty()))
-            }
-            val affected = (oldApps + selectedPackageNames).distinct()
-            val results = mutableMapOf<String, LockEvaluationResult>()
-            for (pkg in affected) {
-                results[pkg] = lockEvaluator.evaluateApp(pkg, instant)
-            }
-            return results
+            com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
         }
+        return execute(taskId, selectedPackageNames, timing, instant).affectedAppsEvaluation
+    }
+
+    suspend operator fun invoke(
+        taskId: String,
+        selectedPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming,
+        instant: Instant = Instant.now()
+    ): Map<String, LockEvaluationResult> {
+        return execute(taskId, selectedPackageNames, timing, instant).affectedAppsEvaluation
     }
 
     suspend fun cancelPending(taskId: String) {

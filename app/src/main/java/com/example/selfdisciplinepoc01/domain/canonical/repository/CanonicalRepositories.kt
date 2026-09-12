@@ -101,6 +101,59 @@ interface CanonicalTaskRepository {
      * Kích hoạt áp dụng tất cả các cấu hình chờ cho toàn bộ active tasks tại 04:00 AM.
      */
     suspend fun applyAllPendingNextCycleRewards()
+
+    /**
+     * Tạo nhiệm vụ và thiết lập liên kết phần thưởng nguyên tử (Atomic Mutation).
+     * Phân định rõ IMMEDIATE_CURRENT_CYCLE hay PENDING_NEXT_CYCLE theo SSOT.
+     * Trả về danh sách các package name bị ảnh hưởng cần đánh giá lại khóa.
+     */
+    suspend fun createTaskAtomic(
+        task: com.example.selfdisciplinepoc01.domain.canonical.task.CanonicalTask,
+        linkedAppPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming
+    ): List<String> {
+        val validApps = linkedAppPackageNames.filter { it.isNotBlank() }.distinct()
+        if (timing == com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE) {
+            saveTask(task.copy(hasReward = false, pendingNextCycleRewards = validApps.ifEmpty { null }))
+            return emptyList()
+        } else {
+            saveTask(task.copy(hasReward = validApps.isNotEmpty(), pendingNextCycleRewards = null))
+            for (pkg in validApps) {
+                linkTaskToApp(task.id, pkg)
+            }
+            return validApps
+        }
+    }
+
+    /**
+     * Cập nhật liên kết phần thưởng của nhiệm vụ nguyên tử (Atomic Mutation).
+     * Phân định rõ IMMEDIATE_CURRENT_CYCLE hay PENDING_NEXT_CYCLE theo SSOT.
+     * Trả về danh sách các package name bị ảnh hưởng cần đánh giá lại khóa.
+     */
+    suspend fun updateTaskRewardLinkageAtomic(
+        taskId: String,
+        newPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming
+    ): List<String> {
+        val validApps = newPackageNames.filter { it.isNotBlank() }.distinct()
+        val oldLinks = getAppsLinkedToTask(taskId)
+        if (timing == com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE) {
+            setPendingNextCycleRewards(taskId, validApps)
+            return emptyList()
+        } else {
+            val task = getTask(taskId)
+            for (pkg in oldLinks) {
+                unlinkTaskFromApp(taskId, pkg)
+            }
+            for (pkg in validApps) {
+                linkTaskToApp(taskId, pkg)
+            }
+            if (task != null) {
+                saveTask(task.copy(hasReward = validApps.isNotEmpty(), pendingNextCycleRewards = null))
+            }
+            return (oldLinks + validApps).distinct()
+        }
+    }
 }
 
 /**

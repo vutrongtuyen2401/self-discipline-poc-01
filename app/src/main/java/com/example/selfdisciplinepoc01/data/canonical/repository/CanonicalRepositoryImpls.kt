@@ -227,6 +227,75 @@ class CanonicalTaskRepositoryImpl(
             applyPendingNextCycleRewards(task.id)
         }
     }
+
+    override suspend fun createTaskAtomic(
+        task: CanonicalTask,
+        linkedAppPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming
+    ): List<String> {
+        return database.withTransaction {
+            val validApps = linkedAppPackageNames.filter { it.isNotBlank() }.distinct()
+            if (timing == com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE) {
+                val taskWithPending = task.copy(
+                    hasReward = false,
+                    pendingNextCycleRewards = if (validApps.isEmpty()) null else validApps
+                )
+                taskDao.upsertTask(CanonicalTaskEntity.fromDomain(taskWithPending))
+                emptyList()
+            } else {
+                val taskImmediate = task.copy(
+                    hasReward = validApps.isNotEmpty(),
+                    pendingNextCycleRewards = null
+                )
+                taskDao.upsertTask(CanonicalTaskEntity.fromDomain(taskImmediate))
+                for (pkg in validApps) {
+                    linkDao.insertLink(
+                        TaskRewardLinkEntity(
+                            taskId = task.id,
+                            packageName = pkg,
+                            linkedAtEpochMillis = System.currentTimeMillis()
+                        )
+                    )
+                }
+                validApps
+            }
+        }
+    }
+
+    override suspend fun updateTaskRewardLinkageAtomic(
+        taskId: String,
+        newPackageNames: List<String>,
+        timing: com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming
+    ): List<String> {
+        return database.withTransaction {
+            val validApps = newPackageNames.filter { it.isNotBlank() }.distinct()
+            val task = taskDao.getTaskById(taskId) ?: return@withTransaction emptyList()
+            val oldLinks = linkDao.getLinksForTask(taskId).map { it.packageName }
+
+            if (timing == com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE) {
+                val pendingStr = if (validApps.isEmpty()) "" else validApps.joinToString(",")
+                taskDao.updatePendingRewards(taskId, pendingStr)
+                emptyList()
+            } else {
+                linkDao.deleteByTask(taskId)
+                for (pkg in validApps) {
+                    linkDao.insertLink(
+                        TaskRewardLinkEntity(
+                            taskId = taskId,
+                            packageName = pkg,
+                            linkedAtEpochMillis = System.currentTimeMillis()
+                        )
+                    )
+                }
+                val updatedTask = task.copy(
+                    hasReward = validApps.isNotEmpty(),
+                    pendingNextCycleRewards = null
+                )
+                taskDao.upsertTask(updatedTask)
+                (oldLinks + validApps).distinct()
+            }
+        }
+    }
 }
 
 /**

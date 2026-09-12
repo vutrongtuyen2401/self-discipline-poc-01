@@ -5,10 +5,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.example.selfdisciplinepoc01.domain.canonical.cycle.CycleTransitionManager
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.CanonicalMutationSyncManager
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEvent
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticEventType
 import com.example.selfdisciplinepoc01.diagnostics.DiagnosticLogger
@@ -30,7 +33,8 @@ import com.example.selfdisciplinepoc01.usage.UsageTrackerProvider
 enum class LockReason {
     ACCESSIBILITY_EVENT,
     DAILY_LIMIT,
-    SCHEDULE_DEADLINE
+    SCHEDULE_DEADLINE,
+    CANONICAL_MUTATION_IMMEDIATE
 }
 
 class AppDetectorAccessibilityService : AccessibilityService() {
@@ -108,6 +112,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
     private var currentLockedTargetPackage: String? = null
     private var isLockScreenVisible: Boolean = false
     private var currentSessionId: Long = 0L
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
@@ -122,6 +127,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
+        registerMutationSyncListener()
         usageLimitWatcher.start()
         scheduleWatcher.start()
         CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
@@ -141,10 +147,44 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             blockingShieldOverlay = BlockingShieldOverlay(this)
         }
         registerScreenReceiver()
+        registerMutationSyncListener()
         usageLimitWatcher.start()
         scheduleWatcher.start()
         CycleTransitionManager.reconcileCycleOnStartup(applicationContext)
         Log.d(TAG, "AppDetectorAccessibilityService connected")
+    }
+
+    private fun registerMutationSyncListener() {
+        CanonicalMutationSyncManager.registerEnforcementListener { affectedPackages ->
+            mainHandler.post {
+                handleCanonicalMutationImmediate(affectedPackages)
+            }
+        }
+    }
+
+    private fun handleCanonicalMutationImmediate(affectedPackages: Collection<String>) {
+        if (!isRunning) return
+        Log.i(TAG, "[CANONICAL_SYNC: IMMEDIATE] Nhận tín hiệu mutation từ Canonical domain. Affected apps: $affectedPackages")
+
+        // 1. Xác định package hiện tại đang hiển thị
+        val currentPkg = getCurrentForegroundPackage()
+            ?: rootInActiveWindow?.packageName?.toString()
+            ?: lastForegroundPackage
+
+        Log.d(TAG, "[CANONICAL_SYNC: FOREGROUND] Current foreground: $currentPkg")
+        if (currentPkg != null && currentPkg != applicationContext.packageName) {
+            // Đánh giá trạng thái khóa tức thì từ snapshot vừa được cập nhật
+            val evaluation = enforcementAdapter.evaluateSync(currentPkg)
+            if (evaluation.finalAction == EnforcementAction.LOCK) {
+                Log.w(
+                    TAG,
+                    "[CANONICAL_SYNC: IMMEDIATE_BLOCK] Ứng dụng '$currentPkg' đang ở foreground và bị khóa sau mutation (reason=${evaluation.reason}). Tiến hành phong ấn tức thì!"
+                )
+                val now = SystemClock.elapsedRealtime()
+                val t1 = SystemClock.elapsedRealtimeNanos()
+                launchLockSession(currentPkg, LockReason.CANONICAL_MUTATION_IMMEDIATE, now, t1)
+            }
+        }
     }
 
     private fun registerScreenReceiver() {
@@ -633,6 +673,7 @@ class AppDetectorAccessibilityService : AccessibilityService() {
             )
         )
         unregisterScreenReceiver()
+        CanonicalMutationSyncManager.unregisterEnforcementListener()
         usageLimitWatcher.stop()
         scheduleWatcher.stop()
         usageTracker.stopSession()

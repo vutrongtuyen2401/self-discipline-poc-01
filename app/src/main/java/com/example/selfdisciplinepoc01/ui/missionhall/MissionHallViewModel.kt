@@ -331,10 +331,15 @@ class MissionHallViewModel(
 
         viewModelScope.launch {
             try {
-                updateRewardLinkageUseCase(
+                val timing = if (isPending) {
+                    com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.PENDING_NEXT_CYCLE
+                } else {
+                    com.example.selfdisciplinepoc01.domain.canonical.task.RewardMutationTiming.IMMEDIATE_CURRENT_CYCLE
+                }
+                updateRewardLinkageUseCase.execute(
                     taskId = taskItem.task.id,
                     selectedPackageNames = selected,
-                    isPendingNextCycle = isPending
+                    timing = timing
                 )
                 enforcementAdapter?.recomputeSnapshot()
                 refresh()
@@ -405,7 +410,7 @@ class MissionHallViewModel(
 
                 return MissionHallViewModel(
                     getTasksUseCase = GetMissionHallTasksCanonicalUseCase(taskRepo, vaultRepo, cycleRepo),
-                    createTaskUseCase = CreateTaskUseCase(taskRepo),
+                    createTaskUseCase = CreateTaskUseCase(taskRepo, lockEvaluator),
                     renameTaskUseCase = RenameTaskUseCase(taskRepo),
                     undoTaskUseCase = UndoTaskUseCase(taskRepo, lockEvaluator),
                     deleteTaskUseCase = DeleteTaskUseCase(taskRepo, lockEvaluator),
