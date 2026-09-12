@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import com.example.selfdisciplinepoc01.AppDetectorAccessibilityService
 import com.example.selfdisciplinepoc01.LockScreenActivity
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
 import com.example.selfdisciplinepoc01.domain.enforcement.EnforcementAction
 import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider
 import com.example.selfdisciplinepoc01.receiver.CycleBroadcastReceiver
@@ -122,14 +123,16 @@ object CycleTransitionManager {
         val currentBoundary = CycleEngine.getCurrentCycleBoundary(now, zoneId)
         Log.i(TAG, "[CYCLE_TRANSITION_0400] Đã chạm mốc chu kỳ mới: ${currentBoundary.cycleId}. Cập nhật snapshot in-memory...")
 
-        // 1. Cập nhật snapshot in-memory của runtime adapter
+        // 1. Áp dụng toàn bộ cấu hình phần thưởng chờ (Pending Next Cycle) và cập nhật snapshot in-memory
+        val taskRepo = CanonicalRepositoryProvider.getTaskRepository(context)
         val adapter = TaskAppEnforcementAdapterProvider.getAdapter(context)
         try {
             kotlinx.coroutines.runBlocking {
+                taskRepo.applyAllPendingNextCycleRewards()
                 adapter.recomputeSnapshot()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Lỗi recompute snapshot: ${e.message}")
+            Log.w(TAG, "Lỗi cập nhật cycle transition: ${e.message}")
         }
 
         // 2. Lên lịch ngay cho 04:00:00 của ngày tiếp theo

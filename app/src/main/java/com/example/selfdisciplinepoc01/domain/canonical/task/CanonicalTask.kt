@@ -23,7 +23,8 @@ data class CanonicalTask(
     val orderIndex: Int = 0,
     val hasReward: Boolean = true,
     val createdAt: Instant = Instant.now(),
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    val pendingNextCycleRewards: List<String>? = null
 ) {
     init {
         require(id.isNotBlank()) { "Task ID không được để trống" }

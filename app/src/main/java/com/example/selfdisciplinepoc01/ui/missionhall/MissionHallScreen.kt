@@ -1,6 +1,7 @@
 package com.example.selfdisciplinepoc01.ui.missionhall
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -34,8 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.selfdisciplinepoc01.domain.model.Task
-import com.example.selfdisciplinepoc01.domain.model.VaultApp
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.MissionHallTaskItem
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp
 import com.example.selfdisciplinepoc01.ui.design.components.AppItemSelectableRow
 import com.example.selfdisciplinepoc01.ui.design.components.CultivationButton
 import com.example.selfdisciplinepoc01.ui.design.components.CultivationButtonVariant
@@ -45,8 +49,8 @@ import com.example.selfdisciplinepoc01.ui.design.components.CultivationDialog
 import com.example.selfdisciplinepoc01.ui.design.components.ProgressCard
 import com.example.selfdisciplinepoc01.ui.design.components.TaskCard
 import com.example.selfdisciplinepoc01.ui.design.theme.CultivationTheme
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -69,7 +73,6 @@ fun MissionHallScreen(
         containerColor = CultivationTheme.colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            // Canonical Design V2 (Section 5): "nút thêm nhiệm vụ là nút nhỏ ở góc dưới bên phải"
             FloatingActionButton(
                 onClick = { viewModel.onOpenAddDialog() },
                 modifier = Modifier
@@ -105,7 +108,7 @@ fun MissionHallScreen(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Header: Tiên hiệp xưng hô "Ký chủ"
+                    // Header
                     item {
                         Column {
                             Text(
@@ -122,29 +125,31 @@ fun MissionHallScreen(
                         }
                     }
 
-                    // Progress Card phong cách Tiên Hiệp
+                    // Progress Card
                     item {
                         ProgressCard(
-                            completedCount = uiState.chain.completedCountToday,
-                            totalCount = uiState.chain.totalActiveTasks
+                            completedCount = uiState.completedCount,
+                            totalCount = uiState.totalActiveCount
                         )
                     }
 
                     // Active Current Task Card (Sequential flow)
                     item {
                         CurrentTaskHighlight(
-                            currentTask = uiState.chain.currentTask,
-                            isAllCompleted = uiState.chain.isAllCompleted,
-                            isEmpty = uiState.chain.isEmpty,
-                            linkedApps = uiState.chain.currentTask?.let { uiState.taskLinkedAppsMap[it.id] } ?: emptyList(),
+                            currentTask = uiState.currentTask,
+                            isAllCompleted = uiState.isAllCompleted,
+                            isEmpty = uiState.isEmpty,
                             onComplete = { taskId -> viewModel.onCompleteTask(taskId) },
-                            onOpenLinkage = { task -> viewModel.onOpenLinkageDialog(task) }
+                            onRename = { taskItem -> viewModel.onOpenRenameDialog(taskItem) },
+                            onDelete = { taskItem -> viewModel.onPromptDeleteTask(taskItem) },
+                            onOpenLinkage = { taskItem -> viewModel.onOpenLinkageDialog(taskItem) },
+                            onCancelPending = { taskId -> viewModel.onCancelPendingRewards(taskId) }
                         )
                     }
 
-                    // Incomplete Tasks Section (Các nhiệm vụ còn lại trong chuỗi)
-                    val remainingIncomplete = uiState.chain.incompleteTasks.filter {
-                        it.id != uiState.chain.currentTask?.id
+                    // Incomplete Tasks Section (Các nhiệm vụ tiếp theo trong chuỗi)
+                    val remainingIncomplete = uiState.incompleteTasks.filter {
+                        it.task.id != uiState.currentTask?.task?.id
                     }
                     if (remainingIncomplete.isNotEmpty()) {
                         item {
@@ -157,55 +162,63 @@ fun MissionHallScreen(
 
                         items(
                             items = remainingIncomplete,
-                            key = { it.id }
-                        ) { task ->
-                            val linkedApps = uiState.taskLinkedAppsMap[task.id] ?: emptyList()
-                            val formattedDate = remember(task.createdAtWallMillis) {
-                                SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault()).format(Date(task.createdAtWallMillis))
+                            key = { it.task.id }
+                        ) { taskItem ->
+                            val formatter = remember {
+                                DateTimeFormatter.ofPattern("HH:mm - dd/MM", Locale.getDefault())
+                                    .withZone(ZoneId.systemDefault())
+                            }
+                            val formattedDate = remember(taskItem.task.createdAt) {
+                                formatter.format(taskItem.task.createdAt)
                             }
                             TaskCard(
-                                taskName = task.name,
+                                taskName = taskItem.task.title,
                                 isCurrentActive = false,
                                 isCompleted = false,
                                 createdAtText = "Tạo lúc: $formattedDate",
-                                linkedApps = linkedApps,
-                                onCompleteClick = { viewModel.onCompleteTask(task.id) },
-                                onDeleteClick = { viewModel.onArchiveTask(task.id) },
-                                onLinkAppsClick = { viewModel.onOpenLinkageDialog(task) }
+                                linkedApps = taskItem.linkedApps,
+                                pendingNextCycleApps = taskItem.pendingNextCycleRewardPackageNames,
+                                onCompleteClick = { viewModel.onCompleteTask(taskItem.task.id) },
+                                onRenameClick = { viewModel.onOpenRenameDialog(taskItem) },
+                                onDeleteClick = { viewModel.onPromptDeleteTask(taskItem) },
+                                onLinkAppsClick = { viewModel.onOpenLinkageDialog(taskItem) },
+                                onCancelPendingClick = { viewModel.onCancelPendingRewards(taskItem.task.id) }
                             )
                         }
                     }
 
                     // Completed Tasks Section
-                    if (uiState.chain.completedTasksToday.isNotEmpty()) {
+                    if (uiState.completedTasks.isNotEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(4.dp))
                             HorizontalDivider(color = CultivationTheme.colors.borderSubtle.copy(alpha = 0.5f))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Đã hoàn thành hôm nay (${uiState.chain.completedTasksToday.size})",
+                                text = "Đã hoàn thành hôm nay (${uiState.completedTasks.size})",
                                 style = CultivationTheme.typography.titleCard,
                                 color = CultivationTheme.colors.statusSuccess
                             )
                         }
 
                         items(
-                            items = uiState.chain.completedTasksToday,
-                            key = { "completed_${it.id}" }
-                        ) { task ->
-                            val linkedApps = uiState.taskLinkedAppsMap[task.id] ?: emptyList()
+                            items = uiState.completedTasks,
+                            key = { "completed_${it.task.id}" }
+                        ) { taskItem ->
                             TaskCard(
-                                taskName = task.name,
+                                taskName = taskItem.task.title,
                                 isCurrentActive = false,
                                 isCompleted = true,
-                                linkedApps = linkedApps
+                                linkedApps = taskItem.linkedApps,
+                                pendingNextCycleApps = taskItem.pendingNextCycleRewardPackageNames,
+                                onUndoClick = { viewModel.onPromptUndoTask(taskItem) },
+                                onCancelPendingClick = { viewModel.onCancelPendingRewards(taskItem.task.id) }
                             )
                         }
                     }
                 }
             }
 
-            // Minimal Task Creation Dialog (Canonical Design V2 Section 5)
+            // Dialog: Thêm Nhiệm Vụ Mới
             if (uiState.isAddingTask) {
                 AddTaskMinimalDialog(
                     name = uiState.currentInputName,
@@ -216,13 +229,97 @@ fun MissionHallScreen(
                 )
             }
 
-            // Task ↔ App Linkage Dialog (Canonical Design V2 Section 5 & 6)
-            uiState.taskSelectedForLinkage?.let { task ->
+            // Dialog: Đổi Tên Nhiệm Vụ (Instant Update, Không Confirmation Dialog per SSOT)
+            uiState.taskBeingRenamed?.let { taskItem ->
+                RenameTaskDialog(
+                    initialName = uiState.renameInputName,
+                    onNameChange = { viewModel.onRenameInputChanged(it) },
+                    onConfirm = { viewModel.onConfirmRename() },
+                    onDismiss = { viewModel.onDismissRenameDialog() }
+                )
+            }
+
+            // Dialog: Xác Nhận Hoàn Tác (Confirmation Dialog Required per SSOT)
+            uiState.taskPendingUndo?.let { taskItem ->
+                CultivationDialog(
+                    onDismissRequest = { viewModel.onDismissUndoDialog() },
+                    title = "Xác Nhận Hoàn Tác",
+                    confirmButton = {
+                        CultivationButton(
+                            text = "Xác nhận",
+                            onClick = { viewModel.onConfirmUndoTask() },
+                            variant = CultivationButtonVariant.PRIMARY
+                        )
+                    },
+                    dismissButton = {
+                        CultivationButton(
+                            text = "Hủy",
+                            onClick = { viewModel.onDismissUndoDialog() },
+                            variant = CultivationButtonVariant.GHOST
+                        )
+                    }
+                ) {
+                    Column {
+                        Text(
+                            text = "Ký chủ có chắc chắn muốn hoàn tác nhiệm vụ [${taskItem.task.title}]?",
+                            style = CultivationTheme.typography.bodyText,
+                            color = CultivationTheme.colors.textPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Lưu ý: Các pháp bảo liên quan sẽ được tái lập trạng thái phong ấn ngay tức thì.",
+                            style = CultivationTheme.typography.caption,
+                            color = CultivationTheme.colors.statusDanger
+                        )
+                    }
+                }
+            }
+
+            // Dialog: Xác Nhận Xóa Nhiệm Vụ (Confirmation Dialog Required per SSOT)
+            uiState.taskPendingDelete?.let { taskItem ->
+                CultivationDialog(
+                    onDismissRequest = { viewModel.onDismissDeleteDialog() },
+                    title = "Xác Nhận Xóa Nhiệm Vụ",
+                    confirmButton = {
+                        CultivationButton(
+                            text = "Xác nhận xóa",
+                            onClick = { viewModel.onConfirmDeleteTask() },
+                            variant = CultivationButtonVariant.PRIMARY
+                        )
+                    },
+                    dismissButton = {
+                        CultivationButton(
+                            text = "Hủy",
+                            onClick = { viewModel.onDismissDeleteDialog() },
+                            variant = CultivationButtonVariant.GHOST
+                        )
+                    }
+                ) {
+                    Column {
+                        Text(
+                            text = "Ký chủ có chắc muốn xóa nhiệm vụ [${taskItem.task.title}] khỏi chuỗi tu luyện?",
+                            style = CultivationTheme.typography.bodyText,
+                            color = CultivationTheme.colors.textPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Lịch sử công đức hoàn thành trong các chu kỳ trước vẫn được lưu giữ trọn vẹn và không bị xóa.",
+                            style = CultivationTheme.typography.caption,
+                            color = CultivationTheme.colors.celestialGold
+                        )
+                    }
+                }
+            }
+
+            // Dialog: Liên Kết Pháp Bảo & Cấu Hình Chờ Chu Kỳ Tiếp Theo
+            uiState.taskSelectedForLinkage?.let { taskItem ->
                 TaskLinkageDialog(
-                    task = task,
+                    taskTitle = taskItem.task.title,
                     availableVaultApps = uiState.availableVaultApps,
                     selectedPackageNames = uiState.selectedPackageNames,
+                    isPendingNextCycle = uiState.isPendingNextCycleSelected,
                     onToggleApp = { viewModel.onToggleAppSelection(it) },
+                    onTogglePending = { viewModel.onTogglePendingNextCycle(it) },
                     onConfirm = { viewModel.onSaveTaskLinkage() },
                     onDismiss = { viewModel.onDismissLinkageDialog() }
                 )
@@ -233,12 +330,14 @@ fun MissionHallScreen(
 
 @Composable
 fun CurrentTaskHighlight(
-    currentTask: Task?,
+    currentTask: MissionHallTaskItem?,
     isAllCompleted: Boolean,
     isEmpty: Boolean,
-    linkedApps: List<VaultApp>,
-    onComplete: (Long) -> Unit,
-    onOpenLinkage: (Task) -> Unit
+    onComplete: (String) -> Unit,
+    onRename: (MissionHallTaskItem) -> Unit,
+    onDelete: (MissionHallTaskItem) -> Unit,
+    onOpenLinkage: (MissionHallTaskItem) -> Unit,
+    onCancelPending: (String) -> Unit
 ) {
     when {
         isEmpty -> {
@@ -269,7 +368,7 @@ fun CurrentTaskHighlight(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Ký chủ đã xuất sắc hoàn thành toàn bộ nhiệm vụ của chu kỳ này! Chuỗi sẽ được khởi tạo lại tại 04:00 sáng mai.",
+                        text = "Ký chủ đã xuất sắc hoàn thành toàn bộ nhiệm vụ của chu kỳ này! Chu kỳ tiếp theo sẽ tái lập tại mốc 04:00 sáng mai.",
                         style = CultivationTheme.typography.bodyText,
                         color = CultivationTheme.colors.textPrimary
                     )
@@ -278,12 +377,16 @@ fun CurrentTaskHighlight(
         }
         currentTask != null -> {
             TaskCard(
-                taskName = currentTask.name,
+                taskName = currentTask.task.title,
                 isCurrentActive = true,
                 isCompleted = false,
-                linkedApps = linkedApps,
-                onCompleteClick = { onComplete(currentTask.id) },
-                onLinkAppsClick = { onOpenLinkage(currentTask) }
+                linkedApps = currentTask.linkedApps,
+                pendingNextCycleApps = currentTask.pendingNextCycleRewardPackageNames,
+                onCompleteClick = { onComplete(currentTask.task.id) },
+                onRenameClick = { onRename(currentTask) },
+                onDeleteClick = { onDelete(currentTask) },
+                onLinkAppsClick = { onOpenLinkage(currentTask) },
+                onCancelPendingClick = { onCancelPending(currentTask.task.id) }
             )
         }
     }
@@ -317,7 +420,7 @@ fun AddTaskMinimalDialog(
     ) {
         Column {
             Text(
-                text = "Nhập tên nhiệm vụ tự kỷ luật của Ký chủ:",
+                text = "Nhập danh hiệu nhiệm vụ tự kỷ luật của Ký chủ:",
                 style = CultivationTheme.typography.bodyText,
                 color = CultivationTheme.colors.textSecondary
             )
@@ -358,18 +461,76 @@ fun AddTaskMinimalDialog(
 }
 
 /**
- * Dialog chọn ứng dụng từ Bảo Khố để liên kết với Task.
- * Canonical Design V2 (Mục 5 & 6):
- * - Chỉ cho phép chọn từ các app hiện có trong Bảo Khố.
- * - Cho phép chọn nhiều app.
- * - Thuật ngữ trung tính: "Ứng dụng liên kết" (không hiển thị 2/3 hay tỷ lệ mở khóa).
+ * Dialog Đổi tên nhiệm vụ tức thì: Không có bước confirmation thừa theo SSOT.
+ */
+@Composable
+fun RenameTaskDialog(
+    initialName: String,
+    onNameChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    CultivationDialog(
+        onDismissRequest = onDismiss,
+        title = "Đổi Danh Hiệu Nhiệm Vụ",
+        confirmButton = {
+            CultivationButton(
+                text = "Lưu thay đổi",
+                onClick = onConfirm,
+                variant = CultivationButtonVariant.PRIMARY
+            )
+        },
+        dismissButton = {
+            CultivationButton(
+                text = "Hủy",
+                onClick = onDismiss,
+                variant = CultivationButtonVariant.GHOST
+            )
+        }
+    ) {
+        Column {
+            Text(
+                text = "Nhập danh hiệu mới (hiệu lực tức thì):",
+                style = CultivationTheme.typography.bodyText,
+                color = CultivationTheme.colors.textSecondary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = initialName,
+                onValueChange = onNameChange,
+                label = {
+                    Text(
+                        "Danh hiệu nhiệm vụ",
+                        style = CultivationTheme.typography.caption,
+                        color = CultivationTheme.colors.textMuted
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = CultivationTheme.shapes.button,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = CultivationTheme.colors.celestialGold,
+                    unfocusedBorderColor = CultivationTheme.colors.borderSubtle,
+                    focusedTextColor = CultivationTheme.colors.textPrimary,
+                    unfocusedTextColor = CultivationTheme.colors.textPrimary,
+                    cursorColor = CultivationTheme.colors.celestialGold
+                )
+            )
+        }
+    }
+}
+
+/**
+ * Dialog chọn pháp bảo liên kết nhiều-nhiều và tùy chọn Chờ chu kỳ tiếp theo (04:00 AM).
  */
 @Composable
 fun TaskLinkageDialog(
-    task: Task,
-    availableVaultApps: List<VaultApp>,
+    taskTitle: String,
+    availableVaultApps: List<CanonicalVaultApp>,
     selectedPackageNames: Set<String>,
+    isPendingNextCycle: Boolean,
     onToggleApp: (String) -> Unit,
+    onTogglePending: (Boolean) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -394,16 +555,16 @@ fun TaskLinkageDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(380.dp)
+                .height(420.dp)
         ) {
             Text(
-                text = "Nhiệm vụ: ${task.name}",
+                text = "Nhiệm vụ: $taskTitle",
                 style = CultivationTheme.typography.titleCard.copy(fontSize = 14.sp),
                 color = CultivationTheme.colors.celestialGold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Chọn các pháp bảo ứng dụng từ Bảo Khố mà Ký chủ muốn liên kết:",
+                text = "Chọn các pháp bảo từ Bảo Khố mà Ký chủ muốn liên kết:",
                 style = CultivationTheme.typography.caption,
                 color = CultivationTheme.colors.textSecondary
             )
@@ -412,7 +573,9 @@ fun TaskLinkageDialog(
 
             if (availableVaultApps.isEmpty()) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -424,21 +587,58 @@ fun TaskLinkageDialog(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(availableVaultApps, key = { it.packageName }) { app ->
                         val isSelected = selectedPackageNames.contains(app.packageName)
                         AppItemSelectableRow(
                             packageName = app.packageName,
-                            appName = app.appName,
+                            appName = app.displayName,
                             isSelected = isSelected,
                             onToggle = { onToggleApp(app.packageName) }
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = CultivationTheme.colors.borderSubtle.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Tùy chọn Pending Next-Cycle (chờ 04:00 AM) theo SSOT Phần V.4
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onTogglePending(!isPendingNextCycle) }
+                    .padding(vertical = 4.dp)
+            ) {
+                Checkbox(
+                    checked = isPendingNextCycle,
+                    onCheckedChange = { onTogglePending(it) },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = CultivationTheme.colors.celestialGold,
+                        uncheckedColor = CultivationTheme.colors.borderSubtle,
+                        checkmarkColor = CultivationTheme.colors.background
+                    )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text(
+                        text = "Áp dụng từ chu kỳ tiếp theo (04:00 AM)",
+                        style = CultivationTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                        color = CultivationTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "Không làm thay đổi trạng thái khóa của chu kỳ hiện tại",
+                        style = CultivationTheme.typography.caption.copy(fontSize = 10.sp),
+                        color = CultivationTheme.colors.textMuted
+                    )
+                }
+            }
         }
     }
 }
-

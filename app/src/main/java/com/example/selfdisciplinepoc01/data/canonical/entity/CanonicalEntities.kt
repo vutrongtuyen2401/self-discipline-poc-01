@@ -24,7 +24,8 @@ data class CanonicalTaskEntity(
     val orderIndex: Int = 0,
     val hasReward: Boolean = true,
     val createdAtEpochMillis: Long = System.currentTimeMillis(),
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    val pendingNextCycleRewards: String? = null
 ) {
     fun toDomain(): CanonicalTask {
         return CanonicalTask(
@@ -34,7 +35,10 @@ data class CanonicalTaskEntity(
             orderIndex = orderIndex,
             hasReward = hasReward,
             createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
-            isArchived = isArchived
+            isArchived = isArchived,
+            pendingNextCycleRewards = pendingNextCycleRewards?.let { str ->
+                if (str.isBlank()) emptyList() else str.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            }
         )
     }
 
@@ -47,7 +51,8 @@ data class CanonicalTaskEntity(
                 orderIndex = task.orderIndex,
                 hasReward = task.hasReward,
                 createdAtEpochMillis = task.createdAt.toEpochMilli(),
-                isArchived = task.isArchived
+                isArchived = task.isArchived,
+                pendingNextCycleRewards = task.pendingNextCycleRewards?.joinToString(",")
             )
         }
     }

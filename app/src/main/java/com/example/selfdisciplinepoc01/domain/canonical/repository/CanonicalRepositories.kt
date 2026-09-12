@@ -74,6 +74,33 @@ interface CanonicalTaskRepository {
      * Lưu ý: Bản thân các CanonicalTask vẫn được giữ nguyên vẹn.
      */
     suspend fun removeAllLinksForApp(packageName: String)
+
+    /**
+     * Đổi tên nhiệm vụ tức thì (Instant Update, không confirmation).
+     */
+    suspend fun renameTask(taskId: String, newTitle: String)
+
+    /**
+     * Cài đặt cấu hình phần thưởng chờ áp dụng tại chu kỳ tiếp theo (04:00 AM).
+     * Ghi đè cấu hình chờ trước đó.
+     */
+    suspend fun setPendingNextCycleRewards(taskId: String, appPackageNames: List<String>)
+
+    /**
+     * Hủy bỏ cấu hình phần thưởng đang chờ của nhiệm vụ.
+     */
+    suspend fun cancelPendingNextCycleRewards(taskId: String)
+
+    /**
+     * Kích hoạt áp dụng cấu hình phần thưởng đang chờ của nhiệm vụ thành chính thức
+     * và xóa hàng chờ pending (thực hiện tại mốc 04:00 AM).
+     */
+    suspend fun applyPendingNextCycleRewards(taskId: String)
+
+    /**
+     * Kích hoạt áp dụng tất cả các cấu hình chờ cho toàn bộ active tasks tại 04:00 AM.
+     */
+    suspend fun applyAllPendingNextCycleRewards()
 }
 
 /**

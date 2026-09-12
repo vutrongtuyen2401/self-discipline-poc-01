@@ -1,6 +1,7 @@
 package com.example.selfdisciplinepoc01.domain.canonical.usecase
 
 import com.example.selfdisciplinepoc01.domain.canonical.cycle.CanonicalCycleId
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalCycleRepository
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalLockEvaluator
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalTaskRepository
 import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalVaultRepository
@@ -181,3 +182,100 @@ class EvaluateVaultAppUseCase(
         return lockEvaluator.evaluateApp(packageName, evaluationInstant)
     }
 }
+
+/**
+ * Use Case: Đổi tên nhiệm vụ tức thì (Instant Update, không confirmation).
+ */
+class RenameTaskUseCase(
+    private val taskRepository: CanonicalTaskRepository
+) {
+    suspend operator fun invoke(taskId: String, newTitle: String) {
+        taskRepository.renameTask(taskId, newTitle)
+    }
+}
+
+/**
+ * Model biểu diễn một phần tử nhiệm vụ hiển thị trên Sảnh Nhiệm Vụ (Mission Hall).
+ */
+data class MissionHallTaskItem(
+    val task: CanonicalTask,
+    val isCompleted: Boolean,
+    val completedAt: Instant?,
+    val linkedApps: List<CanonicalVaultApp>,
+    val pendingNextCycleRewardPackageNames: List<String>? = null
+)
+
+/**
+ * Use Case: Lấy danh sách nhiệm vụ của Sảnh Nhiệm Vụ trong chu kỳ hiện tại.
+ */
+class GetMissionHallTasksCanonicalUseCase(
+    private val taskRepository: CanonicalTaskRepository,
+    private val vaultRepository: CanonicalVaultRepository,
+    private val cycleRepository: CanonicalCycleRepository
+) {
+    suspend operator fun invoke(instant: Instant = Instant.now()): List<MissionHallTaskItem> {
+        val currentCycle = cycleRepository.getCurrentCycle(instant)
+        val activeTasks = taskRepository.getAllActiveTasks()
+        val cycleStates = taskRepository.getCycleStates(currentCycle.cycleId)
+        val allVaultApps = vaultRepository.getAllVaultApps().associateBy { it.packageName }
+
+        return activeTasks.map { task ->
+            val state = cycleStates[task.id]
+            val linkedPackageNames = taskRepository.getAppsLinkedToTask(task.id)
+            val linkedVaultApps = linkedPackageNames.mapNotNull { pkg ->
+                allVaultApps[pkg] ?: CanonicalVaultApp(pkg, pkg)
+            }
+            MissionHallTaskItem(
+                task = task,
+                isCompleted = state?.isCompleted == true,
+                completedAt = state?.completedAt,
+                linkedApps = linkedVaultApps,
+                pendingNextCycleRewardPackageNames = task.pendingNextCycleRewards
+            )
+        }
+    }
+}
+
+/**
+ * Use Case: Cập nhật liên kết phần thưởng của nhiệm vụ.
+ * Hỗ trợ áp dụng ngay lập tức hoặc đặt chế độ Chờ chu kỳ tiếp theo (Pending Next Cycle).
+ */
+class UpdateTaskRewardLinkageUseCase(
+    private val taskRepository: CanonicalTaskRepository,
+    private val lockEvaluator: CanonicalLockEvaluator
+) {
+    suspend operator fun invoke(
+        taskId: String,
+        selectedPackageNames: List<String>,
+        isPendingNextCycle: Boolean = false,
+        instant: Instant = Instant.now()
+    ): Map<String, LockEvaluationResult> {
+        if (isPendingNextCycle) {
+            taskRepository.setPendingNextCycleRewards(taskId, selectedPackageNames)
+            return emptyMap()
+        } else {
+            val oldApps = taskRepository.getAppsLinkedToTask(taskId)
+            for (pkg in oldApps) {
+                taskRepository.unlinkTaskFromApp(taskId, pkg)
+            }
+            for (pkg in selectedPackageNames) {
+                taskRepository.linkTaskToApp(taskId, pkg)
+            }
+            val task = taskRepository.getTask(taskId)
+            if (task != null) {
+                taskRepository.saveTask(task.copy(hasReward = selectedPackageNames.isNotEmpty()))
+            }
+            val affected = (oldApps + selectedPackageNames).distinct()
+            val results = mutableMapOf<String, LockEvaluationResult>()
+            for (pkg in affected) {
+                results[pkg] = lockEvaluator.evaluateApp(pkg, instant)
+            }
+            return results
+        }
+    }
+
+    suspend fun cancelPending(taskId: String) {
+        taskRepository.cancelPendingNextCycleRewards(taskId)
+    }
+}
+

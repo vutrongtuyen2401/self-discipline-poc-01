@@ -39,7 +39,7 @@ import com.example.selfdisciplinepoc01.data.entity.TaskEntity
         TaskRewardLinkEntity::class,
         CanonicalVoucherEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

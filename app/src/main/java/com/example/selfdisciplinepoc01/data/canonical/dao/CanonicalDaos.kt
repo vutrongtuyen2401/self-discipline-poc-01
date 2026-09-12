@@ -24,6 +24,15 @@ interface CanonicalTaskDao {
     @Query("UPDATE canonical_tasks SET isArchived = 1 WHERE id = :taskId")
     suspend fun archiveTask(taskId: String)
 
+    @Query("UPDATE canonical_tasks SET title = :newTitle WHERE id = :taskId")
+    suspend fun renameTask(taskId: String, newTitle: String)
+
+    @Query("UPDATE canonical_tasks SET pendingNextCycleRewards = :pendingJson WHERE id = :taskId")
+    suspend fun updatePendingRewards(taskId: String, pendingJson: String?)
+
+    @Query("SELECT * FROM canonical_tasks WHERE pendingNextCycleRewards IS NOT NULL AND isArchived = 0")
+    suspend fun getTasksWithPendingRewards(): List<CanonicalTaskEntity>
+
     @Query("DELETE FROM canonical_tasks WHERE id = :taskId")
     suspend fun deleteTaskById(taskId: String)
 }

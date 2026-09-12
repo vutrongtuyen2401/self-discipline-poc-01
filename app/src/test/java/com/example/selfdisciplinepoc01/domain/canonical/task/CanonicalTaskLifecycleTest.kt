@@ -111,6 +111,28 @@ class CanonicalTaskLifecycleTest {
         override suspend fun removeAllLinksForApp(packageName: String) {
             links.removeAll { it.appPackageName == packageName }
         }
+        override suspend fun renameTask(taskId: String, newTitle: String) {
+            tasks[taskId]?.let { tasks[taskId] = it.copy(title = newTitle) }
+        }
+        override suspend fun setPendingNextCycleRewards(taskId: String, appPackageNames: List<String>) {
+            tasks[taskId]?.let { tasks[taskId] = it.copy(pendingNextCycleRewards = appPackageNames) }
+        }
+        override suspend fun cancelPendingNextCycleRewards(taskId: String) {
+            tasks[taskId]?.let { tasks[taskId] = it.copy(pendingNextCycleRewards = null) }
+        }
+        override suspend fun applyPendingNextCycleRewards(taskId: String) {
+            val task = tasks[taskId] ?: return
+            val pending = task.pendingNextCycleRewards ?: return
+            links.removeAll { it.taskId == taskId }
+            for (pkg in pending) {
+                links.add(TaskRewardLink(taskId, pkg))
+            }
+            tasks[taskId] = task.copy(hasReward = pending.isNotEmpty(), pendingNextCycleRewards = null)
+        }
+        override suspend fun applyAllPendingNextCycleRewards() {
+            val pendingIds = tasks.values.filter { it.pendingNextCycleRewards != null && !it.isArchived }.map { it.id }
+            for (id in pendingIds) applyPendingNextCycleRewards(id)
+        }
     }
 
     private class FakeVaultRepository : CanonicalVaultRepository {

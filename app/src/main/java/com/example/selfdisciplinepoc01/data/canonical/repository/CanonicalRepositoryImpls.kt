@@ -150,6 +150,55 @@ class CanonicalTaskRepositoryImpl(
     override suspend fun removeAllLinksForApp(packageName: String) {
         linkDao.deleteByApp(packageName)
     }
+
+    override suspend fun renameTask(taskId: String, newTitle: String) {
+        taskDao.renameTask(taskId, newTitle)
+    }
+
+    override suspend fun setPendingNextCycleRewards(taskId: String, appPackageNames: List<String>) {
+        val pendingStr = appPackageNames.joinToString(",")
+        taskDao.updatePendingRewards(taskId, pendingStr)
+    }
+
+    override suspend fun cancelPendingNextCycleRewards(taskId: String) {
+        taskDao.updatePendingRewards(taskId, null)
+    }
+
+    override suspend fun applyPendingNextCycleRewards(taskId: String) {
+        database.withTransaction {
+            val task = taskDao.getTaskById(taskId) ?: return@withTransaction
+            val pendingStr = task.pendingNextCycleRewards ?: return@withTransaction
+            val newApps = if (pendingStr.isBlank()) emptyList() else pendingStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            
+            // 1. Xóa các liên kết phần thưởng cũ của nhiệm vụ
+            linkDao.deleteByTask(taskId)
+            
+            // 2. Chèn các liên kết phần thưởng mới
+            for (pkg in newApps) {
+                linkDao.insertLink(
+                    TaskRewardLinkEntity(
+                        taskId = taskId,
+                        packageName = pkg,
+                        linkedAtEpochMillis = System.currentTimeMillis()
+                    )
+                )
+            }
+            
+            // 3. Cập nhật task: hasReward và xóa pending queue
+            val updatedTask = task.copy(
+                hasReward = newApps.isNotEmpty(),
+                pendingNextCycleRewards = null
+            )
+            taskDao.upsertTask(updatedTask)
+        }
+    }
+
+    override suspend fun applyAllPendingNextCycleRewards() {
+        val pendingTasks = taskDao.getTasksWithPendingRewards()
+        for (task in pendingTasks) {
+            applyPendingNextCycleRewards(task.id)
+        }
+    }
 }
 
 /**
@@ -163,11 +212,35 @@ class CanonicalVaultRepositoryImpl(
     private val voucherDao = database.canonicalVoucherDao()
 
     override suspend fun getAllVaultApps(): List<CanonicalVaultApp> {
-        return vaultDao.getAllApps().map { it.toDomain() }
+        val canonical = vaultDao.getAllApps().map { it.toDomain() }
+        if (canonical.isNotEmpty()) return canonical
+
+        // Safe bridge / minimal migration từ legacy vault_apps sang canonical_vault_apps
+        val legacy = database.appDao().getAllApps()
+        if (legacy.isNotEmpty()) {
+            val migrated = legacy.map {
+                CanonicalVaultApp(
+                    packageName = it.packageName,
+                    displayName = it.appName
+                )
+            }
+            migrated.forEach { addVaultApp(it) }
+            return migrated
+        }
+        return emptyList()
     }
 
     override suspend fun getVaultApp(packageName: String): CanonicalVaultApp? {
-        return vaultDao.getApp(packageName)?.toDomain()
+        val canonical = vaultDao.getApp(packageName)?.toDomain()
+        if (canonical != null) return canonical
+
+        val legacy = database.appDao().getApp(packageName) ?: return null
+        val app = CanonicalVaultApp(
+            packageName = legacy.packageName,
+            displayName = legacy.appName
+        )
+        addVaultApp(app)
+        return app
     }
 
     override suspend fun addVaultApp(app: CanonicalVaultApp) {

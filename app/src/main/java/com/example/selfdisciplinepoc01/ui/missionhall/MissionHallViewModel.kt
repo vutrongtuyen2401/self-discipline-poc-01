@@ -1,49 +1,88 @@
 package com.example.selfdisciplinepoc01.ui.missionhall
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.selfdisciplinepoc01.data.repository.CoreDataRepository
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalCycleRepository
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalLockEvaluator
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalRepositoryProvider
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalTaskRepository
+import com.example.selfdisciplinepoc01.domain.canonical.repository.CanonicalVaultRepository
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.CompleteTaskUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.CreateTaskUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.DeleteTaskUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.GetMissionHallTasksCanonicalUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.MissionHallTaskItem
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.RenameTaskUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.UndoTaskUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.usecase.UpdateTaskRewardLinkageUseCase
+import com.example.selfdisciplinepoc01.domain.canonical.vault.CanonicalVaultApp
 import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapter
-import com.example.selfdisciplinepoc01.domain.model.SequentialTaskChain
-import com.example.selfdisciplinepoc01.domain.model.Task
-import com.example.selfdisciplinepoc01.domain.model.VaultApp
-import com.example.selfdisciplinepoc01.domain.usecase.ArchiveTaskUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.CompleteTaskUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.CreateTaskUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.GetMissionHallTasksUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.GetTaskLinkedAppsUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.GetVaultAppsUseCase
-import com.example.selfdisciplinepoc01.domain.usecase.UpdateTaskLinkedAppsUseCase
-import com.example.selfdisciplinepoc01.time.BusinessDayProvider
+import com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class MissionHallUiState(
-    val chain: SequentialTaskChain = SequentialTaskChain(null, emptyList(), emptyList(), 0, 0),
+    val tasks: List<MissionHallTaskItem> = emptyList(),
     val isLoading: Boolean = true,
     val isAddingTask: Boolean = false,
     val currentInputName: String = "",
     val inputError: String? = null,
     val bannerMessage: String? = null,
-    // Phase 19: Task ↔ App Linkage
-    val taskSelectedForLinkage: Task? = null,
-    val availableVaultApps: List<VaultApp> = emptyList(),
+
+    // Rename Flow (Immediate update, no confirmation dialog per SSOT)
+    val taskBeingRenamed: MissionHallTaskItem? = null,
+    val renameInputName: String = "",
+
+    // Undo Confirmation Dialog (SSOT: Bắt buộc có confirmation)
+    val taskPendingUndo: MissionHallTaskItem? = null,
+
+    // Delete Confirmation Dialog (SSOT: Bắt buộc có confirmation)
+    val taskPendingDelete: MissionHallTaskItem? = null,
+
+    // Task ↔ App Linkage & Pending Next-Cycle Flow
+    val taskSelectedForLinkage: MissionHallTaskItem? = null,
+    val availableVaultApps: List<CanonicalVaultApp> = emptyList(),
     val selectedPackageNames: Set<String> = emptySet(),
-    val taskLinkedAppsMap: Map<Long, List<VaultApp>> = emptyMap()
-)
+    val isPendingNextCycleSelected: Boolean = false
+) {
+    val completedCount: Int
+        get() = tasks.count { it.isCompleted }
+
+    val totalActiveCount: Int
+        get() = tasks.size
+
+    val incompleteTasks: List<MissionHallTaskItem>
+        get() = tasks.filter { !it.isCompleted }
+
+    val completedTasks: List<MissionHallTaskItem>
+        get() = tasks.filter { it.isCompleted }
+
+    val currentTask: MissionHallTaskItem?
+        get() = incompleteTasks.firstOrNull()
+
+    val isAllCompleted: Boolean
+        get() = tasks.isNotEmpty() && incompleteTasks.isEmpty()
+
+    val isEmpty: Boolean
+        get() = tasks.isEmpty()
+}
 
 class MissionHallViewModel(
-    private val getTasksUseCase: GetMissionHallTasksUseCase,
+    private val getTasksUseCase: GetMissionHallTasksCanonicalUseCase,
     private val createTaskUseCase: CreateTaskUseCase,
+    private val renameTaskUseCase: RenameTaskUseCase,
     private val completeTaskUseCase: CompleteTaskUseCase,
-    private val archiveTaskUseCase: ArchiveTaskUseCase,
-    private val getTaskLinkedAppsUseCase: GetTaskLinkedAppsUseCase,
-    private val updateTaskLinkedAppsUseCase: UpdateTaskLinkedAppsUseCase,
-    private val getVaultAppsUseCase: GetVaultAppsUseCase,
+    private val undoTaskUseCase: UndoTaskUseCase,
+    private val deleteTaskUseCase: DeleteTaskUseCase,
+    private val updateRewardLinkageUseCase: UpdateTaskRewardLinkageUseCase,
+    private val vaultRepository: CanonicalVaultRepository,
+    private val cycleRepository: CanonicalCycleRepository,
     private val enforcementAdapter: TaskAppEnforcementAdapter? = null
 ) : ViewModel() {
 
@@ -57,26 +96,22 @@ class MissionHallViewModel(
     fun refresh() {
         viewModelScope.launch {
             try {
-                val chain = getTasksUseCase.getSequentialChain()
-                val allTasks = chain.incompleteTasks + chain.completedTasksToday
-                val map = mutableMapOf<Long, List<VaultApp>>()
-                for (task in allTasks) {
-                    map[task.id] = getTaskLinkedAppsUseCase(task.id)
-                }
+                val taskItems = getTasksUseCase()
                 _uiState.update {
                     it.copy(
-                        chain = chain,
-                        taskLinkedAppsMap = map,
+                        tasks = taskItems,
                         isLoading = false
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isLoading = false, bannerMessage = "Lỗi tải: ${e.message}")
+                    it.copy(isLoading = false, bannerMessage = "Lỗi tải nhiệm vụ: ${e.message}")
                 }
             }
         }
     }
+
+    // --- Add Task Flow ---
 
     fun onOpenAddDialog() {
         _uiState.update {
@@ -108,73 +143,188 @@ class MissionHallViewModel(
     }
 
     fun onConfirmAddTask() {
-        val name = _uiState.value.currentInputName
+        val title = _uiState.value.currentInputName.trim()
+        if (title.isBlank()) {
+            _uiState.update { it.copy(inputError = "Tên nhiệm vụ không được để trống") }
+            return
+        }
+
         viewModelScope.launch {
-            val result = createTaskUseCase(name)
-            result.onSuccess {
+            try {
+                val newId = UUID.randomUUID().toString()
+                val orderIndex = _uiState.value.tasks.size
+                createTaskUseCase(
+                    id = newId,
+                    title = title,
+                    orderIndex = orderIndex,
+                    hasReward = false,
+                    linkedAppPackageNames = emptyList()
+                )
+                enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
                     it.copy(
                         isAddingTask = false,
                         currentInputName = "",
                         inputError = null,
-                        bannerMessage = "Đã thêm nhiệm vụ thành công!"
+                        bannerMessage = "Đã khởi tạo nhiệm vụ tu luyện mới!"
                     )
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
+                _uiState.update { it.copy(inputError = e.message ?: "Lỗi tạo nhiệm vụ") }
+            }
+        }
+    }
+
+    // --- Rename Task Flow (Instant Update, No Confirmation Dialog per SSOT) ---
+
+    fun onOpenRenameDialog(taskItem: MissionHallTaskItem) {
+        _uiState.update {
+            it.copy(
+                taskBeingRenamed = taskItem,
+                renameInputName = taskItem.task.title
+            )
+        }
+    }
+
+    fun onRenameInputChanged(newName: String) {
+        _uiState.update { it.copy(renameInputName = newName) }
+    }
+
+    fun onConfirmRename() {
+        val taskItem = _uiState.value.taskBeingRenamed ?: return
+        val newTitle = _uiState.value.renameInputName.trim()
+        if (newTitle.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                renameTaskUseCase(taskItem.task.id, newTitle)
+                refresh()
                 _uiState.update {
-                    it.copy(inputError = error.message ?: "Tên không hợp lệ")
+                    it.copy(
+                        taskBeingRenamed = null,
+                        renameInputName = "",
+                        bannerMessage = "Đã cập nhật danh hiệu nhiệm vụ thành công."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(bannerMessage = "Lỗi đổi tên: ${e.message}")
                 }
             }
         }
     }
 
-    fun onCompleteTask(taskId: Long) {
+    fun onDismissRenameDialog() {
+        _uiState.update {
+            it.copy(
+                taskBeingRenamed = null,
+                renameInputName = ""
+            )
+        }
+    }
+
+    // --- Complete Task Flow (No Confirmation Dialog in Mission Hall per SSOT) ---
+
+    fun onCompleteTask(taskId: String) {
         viewModelScope.launch {
-            val result = completeTaskUseCase(taskId)
-            result.onSuccess {
+            try {
+                val currentCycle = cycleRepository.getCurrentCycle()
+                completeTaskUseCase(taskId, currentCycle.cycleId)
                 enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
-                    it.copy(bannerMessage = "Đã hoàn thành một nhiệm vụ!")
+                    it.copy(bannerMessage = "Chúc mừng Ký chủ đã hoàn thành một nhiệm vụ!")
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(bannerMessage = "Lỗi hoàn thành nhiệm vụ: ${error.message}")
+                    it.copy(bannerMessage = "Lỗi hoàn thành nhiệm vụ: ${e.message}")
                 }
             }
         }
     }
 
-    fun onArchiveTask(taskId: Long) {
+    // --- Undo Task Flow (Confirmation Dialog Required per SSOT) ---
+
+    fun onPromptUndoTask(taskItem: MissionHallTaskItem) {
+        _uiState.update { it.copy(taskPendingUndo = taskItem) }
+    }
+
+    fun onConfirmUndoTask() {
+        val taskItem = _uiState.value.taskPendingUndo ?: return
         viewModelScope.launch {
-            val result = archiveTaskUseCase(taskId)
-            result.onSuccess {
+            try {
+                val currentCycle = cycleRepository.getCurrentCycle()
+                undoTaskUseCase(taskItem.task.id, currentCycle.cycleId)
                 enforcementAdapter?.recomputeSnapshot()
                 refresh()
                 _uiState.update {
-                    it.copy(bannerMessage = "Đã xóa nhiệm vụ khỏi chuỗi.")
+                    it.copy(
+                        taskPendingUndo = null,
+                        bannerMessage = "Đã hoàn tác trạng thái nhiệm vụ. Các pháp bảo liên quan đã tái lập phong ấn."
+                    )
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(bannerMessage = "Lỗi lưu trữ: ${error.message}")
+                    it.copy(
+                        taskPendingUndo = null,
+                        bannerMessage = "Lỗi hoàn tác: ${e.message}"
+                    )
                 }
             }
         }
     }
 
-    // --- Phase 19: Task ↔ App Linkage Flow ---
+    fun onDismissUndoDialog() {
+        _uiState.update { it.copy(taskPendingUndo = null) }
+    }
 
-    fun onOpenLinkageDialog(task: Task) {
+    // --- Delete Task Flow (Confirmation Dialog Required, Preserves History per SSOT) ---
+
+    fun onPromptDeleteTask(taskItem: MissionHallTaskItem) {
+        _uiState.update { it.copy(taskPendingDelete = taskItem) }
+    }
+
+    fun onConfirmDeleteTask() {
+        val taskItem = _uiState.value.taskPendingDelete ?: return
         viewModelScope.launch {
-            val available = getVaultAppsUseCase.getAllVaultApps()
-            val linked = getTaskLinkedAppsUseCase(task.id)
-            val selectedPkgs = linked.map { it.packageName }.toSet()
+            try {
+                deleteTaskUseCase(taskItem.task.id)
+                enforcementAdapter?.recomputeSnapshot()
+                refresh()
+                _uiState.update {
+                    it.copy(
+                        taskPendingDelete = null,
+                        bannerMessage = "Đã đưa nhiệm vụ vào lưu trữ. Lịch sử công đức quá khứ vẫn bảo tồn nguyên vẹn."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        taskPendingDelete = null,
+                        bannerMessage = "Lỗi xóa nhiệm vụ: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun onDismissDeleteDialog() {
+        _uiState.update { it.copy(taskPendingDelete = null) }
+    }
+
+    // --- Task ↔ App Linkage & Pending Next-Cycle Flow ---
+
+    fun onOpenLinkageDialog(taskItem: MissionHallTaskItem) {
+        viewModelScope.launch {
+            val available = vaultRepository.getAllVaultApps()
+            val selected = taskItem.linkedApps.map { it.packageName }.toSet()
             _uiState.update {
                 it.copy(
-                    taskSelectedForLinkage = task,
+                    taskSelectedForLinkage = taskItem,
                     availableVaultApps = available,
-                    selectedPackageNames = selectedPkgs
+                    selectedPackageNames = selected,
+                    isPendingNextCycleSelected = false
                 )
             }
         }
@@ -192,24 +342,56 @@ class MissionHallViewModel(
         }
     }
 
+    fun onTogglePendingNextCycle(isPending: Boolean) {
+        _uiState.update { it.copy(isPendingNextCycleSelected = isPending) }
+    }
+
     fun onSaveTaskLinkage() {
-        val task = _uiState.value.taskSelectedForLinkage ?: return
+        val taskItem = _uiState.value.taskSelectedForLinkage ?: return
         val selected = _uiState.value.selectedPackageNames.toList()
+        val isPending = _uiState.value.isPendingNextCycleSelected
+
         viewModelScope.launch {
-            val result = updateTaskLinkedAppsUseCase(task.id, selected)
-            result.onSuccess {
+            try {
+                updateRewardLinkageUseCase(
+                    taskId = taskItem.task.id,
+                    selectedPackageNames = selected,
+                    isPendingNextCycle = isPending
+                )
                 enforcementAdapter?.recomputeSnapshot()
                 refresh()
+                val msg = if (isPending) {
+                    "Cấu hình phần thưởng mới sẽ được áp dụng tại 04:00 AM sáng mai."
+                } else {
+                    "Đã cập nhật pháp bảo liên kết cho [${taskItem.task.title}]."
+                }
                 _uiState.update {
                     it.copy(
                         taskSelectedForLinkage = null,
                         selectedPackageNames = emptySet(),
-                        bannerMessage = "Đã cập nhật ứng dụng liên kết cho [${task.name}]."
+                        isPendingNextCycleSelected = false,
+                        bannerMessage = msg
                     )
                 }
-            }.onFailure { error ->
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(bannerMessage = "Lỗi liên kết ứng dụng: ${error.message}")
+                    it.copy(bannerMessage = "Lỗi cập nhật liên kết: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun onCancelPendingRewards(taskId: String) {
+        viewModelScope.launch {
+            try {
+                updateRewardLinkageUseCase.cancelPending(taskId)
+                refresh()
+                _uiState.update {
+                    it.copy(bannerMessage = "Đã hủy cấu hình phần thưởng đang chờ.")
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(bannerMessage = "Lỗi hủy cấu hình chờ: ${e.message}")
                 }
             }
         }
@@ -219,7 +401,8 @@ class MissionHallViewModel(
         _uiState.update {
             it.copy(
                 taskSelectedForLinkage = null,
-                selectedPackageNames = emptySet()
+                selectedPackageNames = emptySet(),
+                isPendingNextCycleSelected = false
             )
         }
     }
@@ -230,21 +413,29 @@ class MissionHallViewModel(
 
     companion object {
         fun provideFactory(
-            repository: CoreDataRepository,
-            businessDayProvider: BusinessDayProvider,
+            context: Context,
             enforcementAdapter: TaskAppEnforcementAdapter? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val appContext = context.applicationContext
+                val taskRepo = CanonicalRepositoryProvider.getTaskRepository(appContext)
+                val vaultRepo = CanonicalRepositoryProvider.getVaultRepository(appContext)
+                val cycleRepo = CanonicalRepositoryProvider.getCycleRepository(appContext)
+                val lockEvaluator = CanonicalRepositoryProvider.getLockEvaluator(appContext)
+                val effectiveAdapter = enforcementAdapter ?: TaskAppEnforcementAdapterProvider.getAdapter(appContext)
+
                 return MissionHallViewModel(
-                    getTasksUseCase = GetMissionHallTasksUseCase(repository, businessDayProvider),
-                    createTaskUseCase = CreateTaskUseCase(repository),
-                    completeTaskUseCase = CompleteTaskUseCase(repository, businessDayProvider),
-                    archiveTaskUseCase = ArchiveTaskUseCase(repository),
-                    getTaskLinkedAppsUseCase = GetTaskLinkedAppsUseCase(repository),
-                    updateTaskLinkedAppsUseCase = UpdateTaskLinkedAppsUseCase(repository),
-                    getVaultAppsUseCase = GetVaultAppsUseCase(repository),
-                    enforcementAdapter = enforcementAdapter
+                    getTasksUseCase = GetMissionHallTasksCanonicalUseCase(taskRepo, vaultRepo, cycleRepo),
+                    createTaskUseCase = CreateTaskUseCase(taskRepo),
+                    renameTaskUseCase = RenameTaskUseCase(taskRepo),
+                    completeTaskUseCase = CompleteTaskUseCase(taskRepo, lockEvaluator),
+                    undoTaskUseCase = UndoTaskUseCase(taskRepo, lockEvaluator),
+                    deleteTaskUseCase = DeleteTaskUseCase(taskRepo, lockEvaluator),
+                    updateRewardLinkageUseCase = UpdateTaskRewardLinkageUseCase(taskRepo, lockEvaluator),
+                    vaultRepository = vaultRepo,
+                    cycleRepository = cycleRepo,
+                    enforcementAdapter = effectiveAdapter
                 ) as T
             }
         }

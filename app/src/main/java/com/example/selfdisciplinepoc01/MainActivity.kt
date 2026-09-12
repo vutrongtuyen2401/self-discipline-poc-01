@@ -214,7 +214,7 @@ fun MainAppScreen() {
         com.example.selfdisciplinepoc01.domain.enforcement.TaskAppEnforcementAdapterProvider.getAdapter(context)
     }
     val missionHallViewModel = remember {
-        MissionHallViewModel.provideFactory(repository, businessDayProvider, enforcementAdapter)
+        MissionHallViewModel.provideFactory(context, enforcementAdapter)
             .create(MissionHallViewModel::class.java)
     }
     val vaultViewModel = remember {
